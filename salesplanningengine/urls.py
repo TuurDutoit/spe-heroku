@@ -4,8 +4,8 @@ from django.views.decorators.csrf import csrf_exempt
 
 admin.autodiscover()
 
-import engine.views
-import engine.api
+import web.views
+import web.api
 
 # To add a new path, first import the app:
 # import blog
@@ -16,7 +16,7 @@ import engine.api
 # Learn more here: https://docs.djangoproject.com/en/2.1/topics/http/urls/
 
 urlpatterns = [
-    path("", engine.views.index),
-    path("api/engine/recalculate", csrf_exempt(engine.api.EngineApiEndpoint.as_view())),
+    path("", web.views.index),
+    path("api/engine/recalculate", csrf_exempt(web.api.EngineApiEndpoint.as_view())),
     path("admin/", admin.site.urls),
 ]
