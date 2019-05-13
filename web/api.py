@@ -1,8 +1,9 @@
 from django.views.generic import View
 from django.http import HttpResponse, JsonResponse
 from django.db.models import When, Case, Value, F, BooleanField
-from .models import Account
-from .util.endpoint import Endpoint, ModelEndpoint, error, success, get_loc
+from django.forms.models import model_to_dict
+from .models import User, Account, Recommendation
+from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, get_loc
 import json
 import os
 
@@ -10,25 +11,25 @@ class RecalculateEndpoint(Endpoint):
     http_method_names = ['post']
 
     def post(self, req, *args, **kwargs):
+        data = RequestData(req)
+        
         try:
-            data = json.loads(req.body)
-        except json.JSONDecodeError:
-            return error(req, 'Empty or malformed body.', 400)
+            userId = data.get('userId')
+        except KeyError:
+            raise GracefulError(error(req, 'Required parameter missing: "userId"'))
         
-        if not 'userId' in data:
-            return error(req, {
-                'message': 'Missing parameter: userId',
-                'docs': 'request.body.userId'
-            }, 400)
+        user = User.objects.get(sf_id = userId)
+        acct = Account.objects.all().filter(Owner = userId, AnnualRevenue__isnull = False).order_by('-AnnualRevenue').first()
+        Recommendation.objects.all().filter(owner = userId).delete()
+        newRec = Recommendation(score=acct.AnnualRevenue, reason1='Annual revenue of €' + str(acct.AnnualRevenue), account=acct, owner=user)
+        newRec.save()
+        print(newRec)
         
-        if not type(data['userId']) == type(str()):
-            return error(req, {
-                'message': 'Parameter "userId" must be a string',
-                'docs': 'request.body.userId',
-                'location': get_loc(req.body, '"userId"')
-            }, 400)
-            
-        return success(data)
+        return success({
+            'record': model_to_dict(newRec),
+            'recordId': newRec.id,
+            'url': req.build_absolute_uri('/api/engine/recommedations/' + str(newRec.id))
+        })
 
 class AccountsEndpoint(ModelEndpoint):
     http_method_names = ['get']

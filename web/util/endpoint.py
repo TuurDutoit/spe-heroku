@@ -129,7 +129,7 @@ class RequestData:
     def __contains__(self, key):
         return key in self.query or key in self.body
     
-    def get(self, key, default):
+    def get(self, key, default=None):
         if key in self.query:
             return self.query[key]
         if key in self.body:
@@ -178,7 +178,15 @@ class RequestData:
                 return get_loc(self.request.body, FORMDATA_PATERN.format(boundary, key))
         
         return { 'line': 0, 'col': 0, 'component': 'request' }
-
+    
+    def keys(self):
+        if type(self.body) == type(dict()):
+            body = self.body
+        else:
+            body = self.body.dict()
+            
+        return list(self.query.dict().keys()) + list(self.body.keys())
+        
 class GracefulError(Exception):
     def __init__(self, response):
         self.response = response
