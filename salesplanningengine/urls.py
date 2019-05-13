@@ -17,6 +17,7 @@ import web.api
 
 urlpatterns = [
     path("", web.views.index),
+    path("test", web.views.test),
     path("api/engine/recalculate", csrf_exempt(web.api.RecalculateEndpoint.as_view())),
     path("api/engine/accounts", web.api.AccountsEndpoint.as_view()),
     path("admin/", admin.site.urls),

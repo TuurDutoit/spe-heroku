@@ -1,11 +1,12 @@
 from django.views.generic import View
 from django.http import HttpResponse, JsonResponse
+from django.db.models import When, Case, Value, F, BooleanField
 from .models import Account
-from .util.endpoint import JsonApiEndpoint, error, success, get_loc
+from .util.endpoint import Endpoint, ModelEndpoint, error, success, get_loc
 import json
 import os
 
-class RecalculateEndpoint(JsonApiEndpoint):
+class RecalculateEndpoint(Endpoint):
     http_method_names = ['post']
 
     def post(self, req, *args, **kwargs):
@@ -29,8 +30,7 @@ class RecalculateEndpoint(JsonApiEndpoint):
             
         return success(data)
 
-class AccountsEndpoint(JsonApiEndpoint):
+class AccountsEndpoint(ModelEndpoint):
     http_method_names = ['get']
-    
-    def get(self, req, *args, **kwargs):
-        return success(list(Account.objects.values('sf_id', 'rating', 'name', 'active', 'numEmployees')))
+    Model = Account
+    readable_keys = ['sf_id', 'AccountNumber']
