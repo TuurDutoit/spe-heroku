@@ -34,3 +34,4 @@ class AccountsEndpoint(ModelEndpoint):
     http_method_names = ['get']
     Model = Account
     readable_keys = ['sf_id', 'AccountNumber']
+    filterable_keys = ['sf_id']

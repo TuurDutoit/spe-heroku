@@ -1,13 +1,13 @@
 from django.views.generic import View
 from django.http import HttpResponse, JsonResponse
-from django.core import serializers
+from django.core.exceptions import FieldDoesNotExist
 import json
 import re
 import logging
 import traceback
 import os
 
-QUERYSTRING_PATTERN = r'[^|&]{}'
+QUERYSTRING_PATTERN = r'(^|&){}'
 FORMDATA_PATERN = r'--{}\s*Content-Disposition\s*:\s*form-data\s*;\s*name\s*=\s*"{}"'
 JSON_PATTERN = r'"{}"\s*:'
 KEY_PATTERN = r''
@@ -38,8 +38,8 @@ class ModelEndpoint(Endpoint):
             self.writeable_keys = self.readable_keys
         if self.filterable_keys == None:
             self.filterable_keys = self.readable_keys
-        if self.filterable_keys == None:
-            self.filterable_keys = self.readable_keys
+        if self.orderable_keys == None:
+            self.orderable_keys = self.readable_keys
     
     def get(self, request, *args, **kwargs):
         data = RequestData(request)
@@ -50,15 +50,18 @@ class ModelEndpoint(Endpoint):
             fields = list(set(fields).intersection(data.getlist('select')))
         
         if 'where' in data:
-            self.check_filter(data.getdict('where'), request)
+            invalid_field = self.check_filter(request, data.getdict('where'))
+            self.check_invalid_field(request, data, 'where', invalid_field)
             query = query.filter(**data.getdict('where'))
         
         if 'exclude' in data:
-            self.check_filter(data.getdict('exclude'), request)
+            invalid_field = self.check_filter(request, data.getdict('exclude'))
+            self.check_invalid_field(request, data, 'exclude', invalid_field)
             query = query.exclude(**data.getdict('exclude'))
         
         if 'order' in data:
-            self.check_order(data.getlist('order'), request)
+            invalid_field = self.check_order(request, data.getlist('order'))
+            self.check_invalid_field(request, data, 'order', invalid_field)
             query = query.order_by(*data.getlist('order'))
         
         if not fields:
@@ -66,34 +69,49 @@ class ModelEndpoint(Endpoint):
             
         return success(list(query.values(*fields)))
     
-    # returns= (Field, String name)
-    def get_field(self, name, allow_filter=False):
+    def get_field_name_without_lookup(self, name):
         parts = name.split('__')
-        field = Model._meta.get_field(parts[0])
+        field = self.Model._meta.get_field(parts[0])
+        
+        if len(parts) == 1:
+            return name
         
         for part in parts[1:-1]:
             field = field.related_model()._meta.get_field(part)
-            
-        if allow_filter and parts[-1] in field.get_lookups():
-            return (field, '__'.join(parts[:-1]))
+        
+        if parts[-1] in field.get_lookups():
+            return '__'.join(parts[:-1])
         else:
-            return (field.related_model()._meta.get_field(parts[-1]), '__'.join(parts))
+            return '__'.join(parts)
         
-    def check_filter(self, where, request):
+    def check_invalid_field(self, request, data, param, invalid_key):
+        if invalid_key:
+            raise GracefulError(error(request, {
+                'message': 'Invalid field in "' + param + '" parameter: "' + invalid_key + '"',
+                'location': data.get_loc(param),
+                'docs': 'request.parameters.' + param
+            }, status=400))
+        
+    def check_filter(self, request, where):
         for key in where:
-            if self.get_field(key, allow_filter=True)[1] in self.filterable_keys:
-                return False
+            try:
+                key = self.get_field_name_without_lookup(key)
+            except FieldDoesNotExist:
+                return key
+            
+            if key not in self.filterable_keys:
+                return key
         
-        return True
+        return None
     
-    def check_order(self, order, request):
+    def check_order(self, request, order):
         for key in order:
             if key.startswith('-'):
                 key = key[1:]
-            if self.get_field(key) not in self.orderable_keys:
-                return False
+            if key not in self.orderable_keys:
+                return key
 
-        return True
+        return None
         
 class RequestData:
     def __init__(self, request):
@@ -119,7 +137,7 @@ class RequestData:
         if default:
             return default
         
-        raise KeyError("No such parameter: '" + key + "'")
+        raise KeyError('No such parameter: "' + key + '"')
     
     def getlist(self, key, default=None):
         if key in self.query:
@@ -132,7 +150,7 @@ class RequestData:
             value = None
 
         if type(value) != type(list()):
-            raise KeyError("Expected parameter of type 'list': '" + key + "'")
+            raise KeyError('Expected parameter of type "list": "' + key + '"')
         
         return value
     
@@ -143,7 +161,7 @@ class RequestData:
             value = json.loads(value)
         
         if type(value) != type(dict()):
-            raise KeyError("Expected parameter of type 'dict': '" + key + "'")
+            raise KeyError('Expected parameter of type "dict": "' + key + '"')
         
         return value
     
