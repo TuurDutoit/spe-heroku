@@ -66,6 +66,8 @@ class ModelEndpoint(Endpoint):
         
         if not fields:
             return error(request, 'No fields specified', status=400)
+        
+        print(query.query.get_compiler('salesforce').as_sql())
             
         return success(list(query.values(*fields)))
     

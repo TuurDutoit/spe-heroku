@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.postgres",
     "heroku_connect",
+    "salesforce",
     "web",
 ]
 
@@ -85,8 +86,20 @@ DATABASES = {
     "default": dj_database_url.config(
         engine='heroku_connect.db.backends.postgresql',
         ssl_require=True
-    )
+    ),
+    "salesforce": {
+        "ENGINE": 'salesforce.backend',
+        "CONSUMER_KEY": os.environ["SF_CONSUMER_KEY"],
+        "CONSUMER_SECRET": os.environ["SF_CONSUMER_SECRET"],
+        "USER": os.environ["SF_USERNAME"],
+        "PASSWORD": os.environ["SF_PASSWORD"] + os.environ["SF_SECURITY_TOKEN"],
+        "HOST": 'https://login.salesforce.com',
+    }
 }
+
+DATABASE_ROUTERS = [
+    "salesforce.router.ModelRouter"
+]
 
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
