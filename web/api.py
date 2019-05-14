@@ -7,6 +7,7 @@ from .models import User, Account, Recommendation
 from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, get_loc
 import json
 import os
+import time
 
 class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
     permission_required = 'web.engine_recalculate'
@@ -20,6 +21,8 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         except KeyError:
             raise GracefulError(error(req, 'Required parameter missing: "userId"'))
         
+        # Wait for Heroku to sync changes
+        time.sleep(2)
         user = User.objects.get(sf_id = userId)
         acct = Account.objects.all().filter(Owner = userId, AnnualRevenue__isnull = False).order_by('-AnnualRevenue').first()
         Recommendation.objects.all().filter(owner = userId).delete()
