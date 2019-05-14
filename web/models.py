@@ -259,7 +259,7 @@ class Engine(models.Model):
         managed = False
         default_permissions = ()
         permissions = [
-            ('recalculate', 'Can start a recalculation of a user\'s recommendations')
+            ('recalculate', 'Can start recalculation of recommendations')
         ]
 
 # Admin site configuration
