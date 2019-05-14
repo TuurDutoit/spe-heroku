@@ -257,6 +257,7 @@ class Recommendation(models.Model):
 class Engine(models.Model):
     class Meta:
         managed = False
+        default_permissions = ()
         permissions = [
             ('recalculate', 'Can start a recalculation of a user\'s recommendations')
         ]
