@@ -24,9 +24,11 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         # Wait for Heroku to sync changes
         i = 0
         origAcct = Account.objects.all().filter(Owner=userId, AnnualRevenue__isnull=False).order_by('-AnnualRevenue').first()
+        print('(orig) Last op: ' + origAcct.last_op)
         while i < 60:
             print('Checking sync (%ss)' % i)
             acct = Account.objects.all().filter(Owner = userId, AnnualRevenue__isnull = False).order_by('-AnnualRevenue').first()
+            print('Last op: ' + acct.last_op)
             if acct.AnnualRevenue != origAcct.AnnualRevenue:
                 print('Synced after %ss' % i)
                 break

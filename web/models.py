@@ -206,6 +206,7 @@ class Account(sf.HerokuConnectModel):
     Website = sf.URL(sf_field_name='Website', max_length=255)
     YearStarted = sf.Text(sf_field_name='YearStarted', max_length=4)
     YearStartedNum = ComputedField(Cast('YearStarted', models.IntegerField()))
+    last_op = models.TextField(db_column='_hc_lastop', max_length=100)
 
 add_addr_fields(Account, ('Billing', 'Shipping'))
 
