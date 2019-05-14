@@ -1,6 +1,7 @@
 from django.db import models
 from django.db.models import Case, When, Value
 from django.db.models.functions import Cast
+from django.contrib import admin
 from heroku_connect.db import models as sf
 from computed_field.fields import ComputedField
 
@@ -142,6 +143,7 @@ def add_addr_fields(model_class, names):
 
 
 
+
 # Create your models here.
 class User(sf.HerokuConnectModel):
     sf_object_name = 'User'
@@ -211,6 +213,9 @@ add_addr_fields(Account, ('Billing', 'Shipping'))
 class Opportunity(sf.HerokuConnectModel):
     sf_object_name = 'Opportunity'
     
+    class Meta:
+        verbose_name_plural = 'Opportunities'
+    
     Account = sf.related.Lookup(Account, sf_field_name='AccountId', to_field='sf_id', on_delete=models.CASCADE)
     Amount = sf.Currency(sf_field_name='Amount', max_digits=18, decimal_places=2)
     CloseDate = sf.Date(sf_field_name='CloseDate')
@@ -247,3 +252,27 @@ class Recommendation(models.Model):
     reason3 = models.CharField(max_length=50)
     account = models.ForeignKey(Account, to_field='sf_id', on_delete=models.CASCADE, db_constraint=False)
     owner = models.ForeignKey(User, to_field='sf_id', on_delete=models.CASCADE, db_constraint=False)
+
+# This model is only used for permissions
+class Engine(models.Model):
+    class Meta:
+        managed = False
+        permissions = (
+            ('recalculate', 'Can start a recalculation of a user\'s recommendations')
+        )
+
+# Admin site configuration
+class ReadOnlyModelAdmin(admin.ModelAdmin):
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_add_permission(self, request):
+        return False
+
+admin.site.register(User, ReadOnlyModelAdmin)
+admin.site.register(Account, ReadOnlyModelAdmin)
+admin.site.register(Opportunity, ReadOnlyModelAdmin)
+admin.site.register(Recommendation, ReadOnlyModelAdmin)
