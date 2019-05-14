@@ -30,6 +30,8 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
             if acct.AnnualRevenue != origAcct.AnnualRevenue:
                 print('Synced after %ss' % i)
                 break
+            time.sleep(1)
+            i += 1
         user = User.objects.get(sf_id = userId)
         acct = Account.objects.all().filter(Owner = userId, AnnualRevenue__isnull = False).order_by('-AnnualRevenue').first()
         Recommendation.objects.all().filter(owner = userId).delete()
