@@ -1,7 +1,7 @@
 from django.views.generic import View
 from django.http import HttpResponse, JsonResponse
 from django.db.models import When, Case, Value, F, BooleanField
-from django.forms.models import model_to_dict
+from django.core.serializers import serialize
 from .models import User, Account, Recommendation
 from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, get_loc
 import json
@@ -26,8 +26,7 @@ class RecalculateEndpoint(Endpoint):
         print(newRec)
         
         return success({
-            'record': model_to_dict(newRec),
-            'recordId': newRec.id,
+            **json.loads(serialize('json', [newRec]))[0],
             'url': req.build_absolute_uri('/api/engine/recommedations/' + str(newRec.id))
         })
 
