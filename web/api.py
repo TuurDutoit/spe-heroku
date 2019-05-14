@@ -25,19 +25,8 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
             raise GracefulError(error(req, 'Required parameter missing: "userId"'))
         
         # Wait for Heroku to sync changes
-        i = 0
-        print('Number of accounts: ' + str(Account.objects.all().filter(Owner=userId).count()))
-        origAcct = Account.objects.all().filter(Owner=userId, AnnualRevenue__isnull=False).order_by('-AnnualRevenue').first()
-        print('(orig) Last op: ' + origAcct.last_op)
-        while i < 60:
-            print('Checking sync (%ss)' % i)
-            acct = Account.objects.all().filter(Owner = userId, AnnualRevenue__isnull = False).order_by('-AnnualRevenue').first()
-            print('Last op: ' + acct.last_op)
-            if acct.AnnualRevenue != origAcct.AnnualRevenue:
-                print('Synced after %ss' % i)
-                break
-            time.sleep(1)
-            i += 1
+        # This usually takes 2-3 seconds
+        time.sleep(5)
         user = User.objects.get(sf_id = userId)
         acct = Account.objects.all().filter(Owner = userId, AnnualRevenue__isnull = False).order_by('-AnnualRevenue').first()
         Recommendation.objects.all().filter(owner = userId).delete()
@@ -48,7 +37,6 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
             owner=user
         )
         newRec.save()
-        print(newRec)
         
         return success({
             **json.loads(serialize('json', [newRec]))[0],
@@ -61,7 +49,3 @@ class AccountsEndpoint(PermissionRequiredMixin, ModelEndpoint):
     Model = Account
     readable_keys = ['sf_id', 'AccountNumber']
     filterable_keys = ['sf_id']
-
-def synced(request):
-    print('Data synced')
-    return HttpResponse('OK')
