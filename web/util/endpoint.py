@@ -118,7 +118,7 @@ class RequestData:
         self.request = request
         self.query = request.GET
         
-        if request.content_type == 'application/json':
+        if request.content_type == 'application/json' and request.body:
             self.body = json.loads(request.body)
         else:
             self.body = request.POST or dict()
