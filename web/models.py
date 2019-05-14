@@ -106,6 +106,7 @@ ADDR_SUBFIELDS = (
         'blank': True,
     }),
     ('Latitude', sf.Number, {
+        'max_digits': 9,
         'decimal_places': 6,
         'null': True,
         'blank': True
@@ -176,7 +177,7 @@ class Account(sf.HerokuConnectModel):
         default=Value(False),
         output_field=models.BooleanField()
     ))
-    AnnualRevenue = sf.Currency(sf_field_name='AnnualRevenue')
+    AnnualRevenue = sf.Currency(sf_field_name='AnnualRevenue', max_digits=18, decimal_places=0)
     CustomerPriority = sf.Picklist(sf_field_name='CustomerPriority__c', choices=CUSTOMER_PRIORITIES)
     DandbCompanyId = sf.ID(sf_field_name='DandbCompanyId')
     DunsNumber = sf.Text(sf_field_name='DunsNumber', max_length=9)
@@ -211,17 +212,16 @@ class Opportunity(sf.HerokuConnectModel):
     sf_object_name = 'Opportunity'
     
     Account = sf.related.Lookup(Account, sf_field_name='AccountId', to_field='sf_id', on_delete=models.CASCADE)
-    Amount = sf.Currency(sf_field_name='Amount')
+    Amount = sf.Currency(sf_field_name='Amount', max_digits=18, decimal_places=2)
     CloseDate = sf.Date(sf_field_name='CloseDate')
     CreatedDate = sf.Date(sf_field_name='CreatedDate')
     CurrentGenerators = sf.Text(sf_field_name='CurrentGenerators__c', max_length=100)
     DeliveryInstallationStatus = sf.Picklist(
         sf_field_name='DeliveryInstallationStatus__c', choices=DELIVERY_INSTALLATION_STATES)
-    ExpectedRevenue = sf.Currency(sf_field_name='ExpectedRevenue')
+    ExpectedRevenue = sf.Currency(sf_field_name='ExpectedRevenue', max_digits=18, decimal_places=2)
     HasOpenActivity = sf.Checkbox(sf_field_name='HasOpenActivity')
     HasOverdueTask = sf.Checkbox(sf_field_name='HasOverdueTask')
     IsClosed = sf.Checkbox(sf_field_name='IsClosed')
-    IsDeleted = sf.Checkbox(sf_field_name='IsDeleted')
     IsPrivate = sf.Checkbox(sf_field_name='IsPrivate')
     IsWon = sf.Checkbox(sf_field_name='IsWon')
     LastActivityDate = sf.Date(sf_field_name='LastActivityDate')
@@ -233,7 +233,7 @@ class Opportunity(sf.HerokuConnectModel):
     NextStep = sf.Text(sf_field_name='NextStep', max_length=255)
     OrderNumber = sf.Text(sf_field_name='OrderNumber__c', max_length=8)
     Owner = sf.related.Lookup(User, sf_field_name='OwnerId', to_field='sf_id', on_delete=models.PROTECT)
-    Probability = sf.Percent(sf_field_name='Probability')
+    Probability = sf.Percent(sf_field_name='Probability', max_digits=3, decimal_places=0)
     StageName = sf.Picklist(sf_field_name='StageName', choices=STAGES)
     TotalOpportunityQuantity = sf.Number(sf_field_name='TotalOpportunityQuantity', max_digits=18, decimal_places=2)
     TrackingNumber = sf.Text(sf_field_name='TrackingNumber__c', max_length=12)
