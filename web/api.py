@@ -8,6 +8,9 @@ from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, 
 import json
 import os
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
     permission_required = 'web.engine_recalculate'
@@ -23,6 +26,7 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         
         # Wait for Heroku to sync changes
         i = 0
+        print('Number of accounts: ' + str(Account.objects.all().filter(Owner=userId).count()))
         origAcct = Account.objects.all().filter(Owner=userId, AnnualRevenue__isnull=False).order_by('-AnnualRevenue').first()
         print('(orig) Last op: ' + origAcct.last_op)
         while i < 60:
@@ -57,3 +61,7 @@ class AccountsEndpoint(PermissionRequiredMixin, ModelEndpoint):
     Model = Account
     readable_keys = ['sf_id', 'AccountNumber']
     filterable_keys = ['sf_id']
+
+def synced(request):
+    print('Data synced')
+    return HttpResponse('OK')

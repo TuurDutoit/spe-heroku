@@ -21,5 +21,6 @@ urlpatterns = [
     path("accounts/login/", web.views.LoginView.as_view()),
     path("api/engine/recalculate", csrf_exempt(web.api.RecalculateEndpoint.as_view())),
     path("api/engine/accounts", web.api.AccountsEndpoint.as_view()),
+    path("api/hooks/synced", web.api.synced),
     path("admin/", admin.site.urls),
 ]
