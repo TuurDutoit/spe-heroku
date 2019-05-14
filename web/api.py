@@ -22,7 +22,14 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
             raise GracefulError(error(req, 'Required parameter missing: "userId"'))
         
         # Wait for Heroku to sync changes
-        time.sleep(2)
+        i = 0
+        origAcct = Account.objects.all().filter(Owner=userId, AnnualRevenue__isnull=False).order_by('-AnnualRevenue').first()
+        while i < 60:
+            print('Checking sync (%ss)' % i)
+            acct = Account.objects.all().filter(Owner = userId, AnnualRevenue__isnull = False).order_by('-AnnualRevenue').first()
+            if acct.AnnualRevenue != origAcct.AnnualRevenue:
+                print('Synced after %ss' % i)
+                break
         user = User.objects.get(sf_id = userId)
         acct = Account.objects.all().filter(Owner = userId, AnnualRevenue__isnull = False).order_by('-AnnualRevenue').first()
         Recommendation.objects.all().filter(owner = userId).delete()
