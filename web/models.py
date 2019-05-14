@@ -257,9 +257,9 @@ class Recommendation(models.Model):
 class Engine(models.Model):
     class Meta:
         managed = False
-        permissions = (
+        permissions = [
             ('recalculate', 'Can start a recalculation of a user\'s recommendations')
-        )
+        ]
 
 # Admin site configuration
 class ReadOnlyModelAdmin(admin.ModelAdmin):
