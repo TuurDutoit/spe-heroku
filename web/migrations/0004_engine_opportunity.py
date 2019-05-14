@@ -18,7 +18,8 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
             ],
             options={
-                'permissions': [('recalculate', "Can start a recalculation of a user's recommendations")],
+                'permissions': [('engine_recalculate', 'Can start recalculation of recommendations')],
+                'default_permissions': (),
                 'managed': False,
             },
         ),
