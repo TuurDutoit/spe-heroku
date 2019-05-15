@@ -31,8 +31,8 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         newRec = Recommendation(
             score=max(min(acct.annual_revenue / 1000000, 100), 0),
             reason1='Annual revenue of €' + str(acct.AnnualRevenue),
-            account_id=acct.id,
-            owner_id=user.id
+            account=acct.id,
+            owner=user.id
         )
         newRec.save()
         
