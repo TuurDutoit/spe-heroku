@@ -11,6 +11,10 @@ QUERYSTRING_PATTERN = r'(^|&){}'
 FORMDATA_PATERN = r'--{}\s*Content-Disposition\s*:\s*form-data\s*;\s*name\s*=\s*"{}"'
 JSON_PATTERN = r'"{}"\s*:'
 KEY_PATTERN = r''
+ERR_NO_PARAM = 'Expected parameter: "{}"'
+ERR_NOT_LIST = 'Expected parameter of type "list": "{}"'
+ERR_NOT_DICT = 'Expected parameter of type "dict": "{}"'
+ERR_NOT_JSON = 'Failed to parse parameter as JSON: "{}"'
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +135,7 @@ class RequestData:
     def __contains__(self, key):
         return key in self.query or key in self.body
     
-    def get(self, key, default=None):
+    def get(self, key, default=None, graceful=False):
         if key in self.query:
             return self.query[key]
         if key in self.body:
@@ -139,9 +143,9 @@ class RequestData:
         if default:
             return default
         
-        raise KeyError('No such parameter: "' + key + '"')
+        self._error(ERR_NO_PARAM, key, graceful)
     
-    def getlist(self, key, default=None):
+    def getlist(self, key, default=None, graceful=False):
         if key in self.query:
             value = self.query.getlist(key)
         elif key in self.body:
@@ -152,18 +156,21 @@ class RequestData:
             value = None
 
         if type(value) != type(list()):
-            raise KeyError('Expected parameter of type "list": "' + key + '"')
+            self._error(ERR_NOT_LIST, key, graceful)
         
         return value
     
-    def getdict(self, key, default=None):
-        value = self.get(key, default)
+    def getdict(self, key, default=None, graceful=False):
+        value = self.get(key, default, graceful)
         
         if type(value) == type(str()):
-            value = json.loads(value)
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                self._error(ERR_NOT_JSON, key, graceful)
         
         if type(value) != type(dict()):
-            raise KeyError('Expected parameter of type "dict": "' + key + '"')
+            self._error(ERR_NOT_DICT, key, graceful)
         
         return value
     
@@ -188,6 +195,13 @@ class RequestData:
             body = self.body.dict()
             
         return list(self.query.dict().keys()) + list(self.body.keys())
+    
+    def _error(self, msg_pattern, key, graceful):
+        if graceful:
+            msg = msg_pattern.format(key) if graceful == True else graceful
+            raise GracefulError(error(self.request, msg, 400))
+        else:
+            raise KeyError(msg_pattern.format(key))
         
 class GracefulError(Exception):
     def __init__(self, response):
