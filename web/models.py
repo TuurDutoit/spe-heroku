@@ -577,12 +577,12 @@ class Opportunity(sf.Model):
 
 
 class Recommendation(models.Model):
-    score = sf.FloatField()
-    reason1 = sf.CharField(max_length=50)
-    reason2 = sf.CharField(max_length=50)
-    reason3 = sf.CharField(max_length=50)
-    account_id = sf.CharField(max_length=18)
-    owner_id = sf.CharField(max_length=18)
+    score = models.FloatField()
+    reason1 = models.CharField(max_length=50)
+    reason2 = models.CharField(max_length=50)
+    reason3 = models.CharField(max_length=50)
+    account_id = models.CharField(max_length=18)
+    owner_id = models.CharField(max_length=18)
 
 
 # This model is only used for permissions
