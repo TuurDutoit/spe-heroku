@@ -30,7 +30,7 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         # Create new recommendation
         newRec = Recommendation(
             score=max(min(acct.annual_revenue / 1000000, 100), 0),
-            reason1='Annual revenue of €' + str(acct.AnnualRevenue),
+            reason1='Annual revenue of €' + str(acct.annual_revenue),
             account_id=acct.id,
             owner_id=user.id
         )
