@@ -42,7 +42,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.postgres",
-    "heroku_connect",
     "salesforce",
     "web",
 ]
@@ -83,10 +82,7 @@ WSGI_APPLICATION = "salesplanningengine.wsgi.application"
 # https://docs.djangoproject.com/en/2.0/ref/settings/#databases
 
 DATABASES = {
-    "default": dj_database_url.config(
-        engine='heroku_connect.db.backends.postgresql',
-        ssl_require=True
-    ),
+    "default": dj_database_url.config(),
     "salesforce": {
         "ENGINE": 'salesforce.backend',
         "CONSUMER_KEY": os.environ["SF_CONSUMER_KEY"],

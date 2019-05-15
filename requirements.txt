@@ -1,7 +1,6 @@
 django
 gunicorn
 django-heroku
-django-heroku-connect
 psycopg2-binary
 dj-database-url
 django-salesforce
