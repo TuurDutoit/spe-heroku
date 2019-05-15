@@ -17,7 +17,7 @@ class User(sf.Model):
     alias = sf.CharField(max_length=8)
     badge_text = sf.CharField(max_length=80, verbose_name='User Photo badge text overlay', sf_read_only=sf.READ_ONLY, blank=True, null=True)
     banner_photo_url = sf.URLField(verbose_name='Url for banner photo', sf_read_only=sf.READ_ONLY, blank=True, null=True)
-    call_center = sf.ForeignKey('CallCenter', sf.DO_NOTHING, blank=True, null=True)
+    #call_center = sf.ForeignKey('CallCenter', sf.DO_NOTHING, blank=True, null=True)
     city = sf.CharField(max_length=40, blank=True, null=True)
     community_nickname = sf.CharField(max_length=40, verbose_name='Nickname')
     company_name = sf.CharField(max_length=80, blank=True, null=True)
@@ -26,7 +26,7 @@ class User(sf.Model):
     created_by = sf.ForeignKey('self', sf.DO_NOTHING, related_name='user_createdby_set', sf_read_only=sf.READ_ONLY)
     created_date = sf.DateTimeField(sf_read_only=sf.READ_ONLY)
     default_group_notification_frequency = sf.CharField(max_length=40, verbose_name='Default Notification Frequency when Joining Groups', default=sf.DEFAULTED_ON_CREATE, choices=[('P', 'Email on Each Post'), ('D', 'Daily Digests'), ('W', 'Weekly Digests'), ('N', 'Never')])
-    delegated_approver = sf.ForeignKey('Group', sf.DO_NOTHING, blank=True, null=True)  # Reference to tables [Group, User]
+    #delegated_approver = sf.ForeignKey('Group', sf.DO_NOTHING, blank=True, null=True)  # Reference to tables [Group, User]
     department = sf.CharField(max_length=80, blank=True, null=True)
     digest_frequency = sf.CharField(max_length=40, verbose_name='Chatter Email Highlights Frequency', default=sf.DEFAULTED_ON_CREATE, choices=[('D', 'Daily'), ('W', 'Weekly'), ('N', 'Never')])
     division = sf.CharField(max_length=80, blank=True, null=True)
@@ -68,7 +68,7 @@ class User(sf.Model):
     out_of_office_message = sf.CharField(max_length=40, verbose_name='Out of office message', sf_read_only=sf.READ_ONLY, blank=True, null=True)
     phone = sf.CharField(max_length=40, blank=True, null=True)
     postal_code = sf.CharField(max_length=20, verbose_name='Zip/Postal Code', blank=True, null=True)
-    profile = sf.ForeignKey('Profile', sf.DO_NOTHING)
+    #profile = sf.ForeignKey('Profile', sf.DO_NOTHING)
     receives_admin_info_emails = sf.BooleanField(verbose_name='Admin Info Emails', default=sf.DEFAULTED_ON_CREATE)
     receives_info_emails = sf.BooleanField(verbose_name='Info Emails', default=sf.DEFAULTED_ON_CREATE)
     sender_email = sf.EmailField(verbose_name='Email Sender Address', blank=True, null=True)
@@ -174,7 +174,7 @@ class User(sf.Model):
     user_preferences_suppress_task_sfxreminders = sf.BooleanField(db_column='UserPreferencesSuppressTaskSFXReminders', verbose_name='SuppressTaskSFXReminders')
     user_preferences_task_reminders_checkbox_default = sf.BooleanField(verbose_name='TaskRemindersCheckboxDefault')
     user_preferences_user_debug_mode_pref = sf.BooleanField(verbose_name='UserDebugModePref')
-    user_role = sf.ForeignKey('UserRole', sf.DO_NOTHING, blank=True, null=True)
+    #user_role = sf.ForeignKey('UserRole', sf.DO_NOTHING, blank=True, null=True)
     user_type = sf.CharField(max_length=40, sf_read_only=sf.READ_ONLY, choices=[('Standard', 'Standard'), ('PowerPartner', 'Partner'), ('PowerCustomerSuccess', 'Customer Portal Manager'), ('CustomerSuccess', 'Customer Portal User'), ('Guest', 'Guest'), ('CspLitePortal', 'High Volume Portal'), ('CsnOnly', 'CSN Only'), ('SelfService', 'Self Service')], blank=True, null=True)
     username = sf.CharField(max_length=80)
     class Meta(sf.Model.Meta):
@@ -499,7 +499,7 @@ class Lead(sf.Model):
     name = sf.CharField(max_length=121, verbose_name='Full Name', sf_read_only=sf.READ_ONLY)
     number_of_employees = sf.IntegerField(verbose_name='Employees', blank=True, null=True)
     numberof_locations = sf.DecimalField(custom=True, max_digits=3, decimal_places=0, verbose_name='Number of Locations', blank=True, null=True)
-    owner = sf.ForeignKey('Group', sf.DO_NOTHING)  # Reference to tables [Group, User]
+    #owner = sf.ForeignKey('Group', sf.DO_NOTHING)  # Reference to tables [Group, User]
     phone = sf.CharField(max_length=40, blank=True, null=True)
     photo_url = sf.URLField(verbose_name='Photo URL', sf_read_only=sf.READ_ONLY, blank=True, null=True)
     postal_code = sf.CharField(max_length=20, verbose_name='Zip/Postal Code', blank=True, null=True)
@@ -525,7 +525,7 @@ class Lead(sf.Model):
 class Opportunity(sf.Model):
     account = sf.ForeignKey(Account, sf.DO_NOTHING, blank=True, null=True)  # Master Detail Relationship *
     amount = sf.DecimalField(max_digits=18, decimal_places=2, blank=True, null=True)
-    campaign = sf.ForeignKey('Campaign', sf.DO_NOTHING, blank=True, null=True)
+    #campaign = sf.ForeignKey('Campaign', sf.DO_NOTHING, blank=True, null=True)
     close_date = sf.DateField()
     created_by = sf.ForeignKey('User', sf.DO_NOTHING, related_name='opportunity_createdby_set', sf_read_only=sf.READ_ONLY)
     created_date = sf.DateTimeField(sf_read_only=sf.READ_ONLY)
@@ -556,7 +556,7 @@ class Opportunity(sf.Model):
     next_step = sf.CharField(max_length=255, blank=True, null=True)
     order_number = sf.CharField(custom=True, max_length=8, blank=True, null=True)
     owner = sf.ForeignKey('User', sf.DO_NOTHING, related_name='opportunity_owner_set')
-    pricebook2 = sf.ForeignKey('Pricebook2', sf.DO_NOTHING, blank=True, null=True)
+    #pricebook2 = sf.ForeignKey('Pricebook2', sf.DO_NOTHING, blank=True, null=True)
     probability = sf.DecimalField(max_digits=3, decimal_places=0, verbose_name='Probability (%)', default=sf.DEFAULTED_ON_CREATE, blank=True, null=True)
     stage_name = sf.CharField(max_length=40, verbose_name='Stage', choices=[('Prospecting', 'Prospecting'), ('Qualification', 'Qualification'), ('Needs Analysis', 'Needs Analysis'), ('Value Proposition', 'Value Proposition'), ('Id. Decision Makers', 'Id. Decision Makers'), ('Perception Analysis', 'Perception Analysis'), ('Proposal/Price Quote', 'Proposal/Price Quote'), ('Negotiation/Review', 'Negotiation/Review'), ('Closed Won', 'Closed Won'), ('Closed Lost', 'Closed Lost')])
     system_modstamp = sf.DateTimeField(sf_read_only=sf.READ_ONLY)
