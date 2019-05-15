@@ -1,7 +1,7 @@
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.serializers import serialize
 from .models import User, Account, Recommendation
-from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success
+from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, to_json
 import json
 import time
 
@@ -19,14 +19,10 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         except KeyError:
             raise GracefulError(error(req, 'Required parameter missing: "userId"'))
         
-        # Wait for Heroku to sync changes
-        # This usually takes 2-3 seconds
-        time.sleep(5)
-        
         # Fetch User and Account objects
         user = User.objects.get(id = userId)
         acct = Account.objects.all().filter(owner = userId, annual_revenue__isnull = False).order_by('-annual_revenue').first()
-        print(acct)
+        print(to_json(acct))
         
         # Delete old recommendations
         Recommendation.objects.all().filter(owner = userId).delete()
@@ -35,14 +31,14 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         newRec = Recommendation(
             score=max(min(acct.annual_revenue / 1000000, 100), 0),
             reason1='Annual revenue of €' + str(acct.AnnualRevenue),
-            account=acct,
-            owner=user
+            account_id=acct.id,
+            owner_id=user.id
         )
         newRec.save()
         
         # Return a successful response
         return success({
-            **json.loads(serialize('json', [newRec]))[0],
+            **to_json(newRec),
             'url': req.build_absolute_uri('/api/engine/recommedations/' + str(newRec.id))
         })
 

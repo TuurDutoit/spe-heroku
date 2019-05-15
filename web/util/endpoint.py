@@ -1,5 +1,6 @@
 from django.views.generic import View
 from django.http import HttpResponse, JsonResponse
+from django.core.serializers import serialize
 from django.core.exceptions import FieldDoesNotExist
 import json
 import re
@@ -267,3 +268,6 @@ def get_loc(string, index, component='body'):
         else:
             index -= len(line) + len(os.linesep)
             lines += 1
+
+def to_json(obj):
+    return json.loads(serialize('json', [obj]))[0]
