@@ -25,7 +25,7 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         
         # Fetch User and Account objects
         user = User.objects.get(id = userId)
-        acct = Account.objects.all().filter(Owner = userId, AnnualRevenue__isnull = False).order_by('-AnnualRevenue').first()
+        acct = Account.objects.all().filter(owner = userId, annual_revenue__isnull = False).order_by('-annual_revenue').first()
         print(acct)
         
         # Delete old recommendations
@@ -33,7 +33,7 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         
         # Create new recommendation
         newRec = Recommendation(
-            score=max(min(acct.AnnualRevenue / 1000000, 100), 0),
+            score=max(min(acct.annual_revenue / 1000000, 100), 0),
             reason1='Annual revenue of €' + str(acct.AnnualRevenue),
             account=acct,
             owner=user
