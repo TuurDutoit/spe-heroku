@@ -581,8 +581,8 @@ class Recommendation(models.Model):
     reason1 = sf.CharField(max_length=50)
     reason2 = sf.CharField(max_length=50)
     reason3 = sf.CharField(max_length=50)
-    account = sf.CharField(max_length=18)
-    owner = sf.CharField(max_length=18)
+    account_id = sf.CharField(max_length=18)
+    owner_id = sf.CharField(max_length=18)
 
 
 # This model is only used for permissions

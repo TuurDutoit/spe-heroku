@@ -25,14 +25,14 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         print(to_json(acct))
         
         # Delete old recommendations
-        Recommendation.objects.all().filter(owner = userId).delete()
+        Recommendation.objects.all().filter(owner_id = userId).delete()
         
         # Create new recommendation
         newRec = Recommendation(
             score=max(min(acct.annual_revenue / 1000000, 100), 0),
             reason1='Annual revenue of €' + str(acct.AnnualRevenue),
-            account=acct.id,
-            owner=user.id
+            account_id=acct.id,
+            owner_id=user.id
         )
         newRec.save()
         
