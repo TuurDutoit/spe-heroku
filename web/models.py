@@ -581,8 +581,8 @@ class Recommendation(models.Model):
     reason1 = sf.CharField(max_length=50)
     reason2 = sf.CharField(max_length=50)
     reason3 = sf.CharField(max_length=50)
-    account = sf.ForeignKey(Account, to_field='sf_id', on_delete=models.CASCADE, db_constraint=False)
-    owner = sf.ForeignKey(User, to_field='sf_id', on_delete=models.CASCADE, db_constraint=False)
+    account = sf.ForeignKey(Account, on_delete=models.CASCADE, db_constraint=False)
+    owner = sf.ForeignKey(User, on_delete=models.CASCADE, db_constraint=False)
 
 
 # This model is only used for permissions
