@@ -1,5 +1,6 @@
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.serializers import serialize
+from engine.recommendations import main as get_schedules
 from .models import User, Account, Recommendation
 from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, to_json
 import json
@@ -41,6 +42,18 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
             'url': req.build_absolute_uri('/api/engine/recommedations/' + str(newRec.id))
         })
 
+class RecommendationsEndpoint(PermissionRequiredMixin, Endpoint):
+    permission_required = 'web.engine_recalculate'
+    http_method_names = ['get']
+    
+    def get(self, req, *args, **kwargs):
+        return success(get_schedules(EngineArgs()))
+
+class EngineArgs:
+    commute_time = 30
+    load_min = 480
+    load_max = 560
+    num_workers = 98
 
 class AccountsEndpoint(PermissionRequiredMixin, ModelEndpoint):
     permission_required = 'web.view_account'
