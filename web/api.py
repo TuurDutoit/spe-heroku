@@ -22,7 +22,6 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         # Fetch User and Account objects
         user = User.objects.get(id = userId)
         acct = Account.objects.all().filter(owner = userId, annual_revenue__isnull = False).order_by('-annual_revenue').first()
-        print(to_json(acct))
         
         # Delete old recommendations
         Recommendation.objects.all().filter(owner_id = userId).delete()
