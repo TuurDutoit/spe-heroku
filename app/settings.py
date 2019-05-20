@@ -81,7 +81,7 @@ WSGI_APPLICATION = "app.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/2.0/ref/settings/#databases
 db_name = os.environ.get('DATABASE', 'default')
-db_env = 'DATABASE_URL' if db_name == 'default' else 'HEROKU_POSTGRESQL_' + upper(db_name) + '_URL'
+db_env = 'DATABASE_URL' if db_name == 'default' else 'HEROKU_POSTGRESQL_' + db_name.upper() + '_URL'
 
 DATABASES = {
     "default": dj_database_url.config(env=db_env),
