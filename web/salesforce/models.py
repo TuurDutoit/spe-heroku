@@ -7,6 +7,7 @@
 # Feel free to rename the models, but don't rename db_table values or field names.
 from salesforce import models as sf
 from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib import admin
 
 
@@ -592,7 +593,7 @@ class Calendar(sf.Model):
 class Event(sf.Model):
     who = sf.ForeignKey('Contact', sf.DO_NOTHING, blank=True, null=True)  # Reference to tables [Contact, Lead] Master Detail Relationship *
     what = sf.ForeignKey('Account', sf.DO_NOTHING, related_name='event_what_set', blank=True, null=True)  # Reference to tables [Account, Asset, AssetRelationship, Campaign, Case, Contract, ListEmail, Opportunity, Order, Product2, Solution] Master Detail Relationship *
-    subject = sf.CharField(max_length=255, choices=[('Call', 'Call'), ('Email', 'Email'), ('Meeting', 'Meeting'), ('Send Letter/Quote', 'Send Letter/Quote'), ('Other', 'Other')], blank=True, null=True)
+    subject = sf.CharField(max_length=255, blank=True, null=True)
     location = sf.CharField(max_length=255, blank=True, null=True)
     is_all_day_event = sf.BooleanField(verbose_name='All-Day Event', default=sf.DEFAULTED_ON_CREATE)
     activity_date_time = sf.DateTimeField(verbose_name='Due Date Time', blank=True, null=True)
@@ -602,7 +603,7 @@ class Event(sf.Model):
     end_date_time = sf.DateTimeField(blank=True, null=True)
     description = sf.TextField(blank=True, null=True)
     account = sf.ForeignKey('Account', sf.DO_NOTHING, related_name='event_account_set', sf_read_only=sf.READ_ONLY, blank=True, null=True)
-    owner = sf.ForeignKey(Calendar, sf.DO_NOTHING)  # Reference to tables [Calendar, User]
+    owner = sf.ForeignKey(User, sf.DO_NOTHING)  # Reference to tables [User, Calendar]
     is_private = sf.BooleanField(verbose_name='Private', default=sf.DEFAULTED_ON_CREATE)
     show_as = sf.CharField(max_length=40, verbose_name='Show Time As', default=sf.DEFAULTED_ON_CREATE, choices=[('Busy', 'Busy'), ('OutOfOffice', 'Out of Office'), ('Free', 'Free')], blank=True, null=True)
     is_deleted = sf.BooleanField(verbose_name='Deleted', sf_read_only=sf.READ_ONLY, default=False)
@@ -658,6 +659,24 @@ class Recommendation(models.Model):
         verbose_name_plural = 'Recommendations'
 
 
+class Location(models.Model):
+    latitude = models.FloatField(validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)])
+    longitude = models.FloatField(validators=[MinValueValidator(-180.0), MaxValueValidator(180.0)])
+    related_to = models.CharField(max_length=30)
+
+
+class Route(models.Model):
+    start = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='routes_from')
+    end = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='routes_to')
+    distance = models.IntegerField()
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['start']),
+            models.Index(fields=['end'])
+        ]
+
+
 # This model is only used for permissions
 class Engine(models.Model):
     class Meta:
@@ -678,10 +697,59 @@ class ReadOnlyModelAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
-admin.site.register(User, ReadOnlyModelAdmin)
-admin.site.register(Account, ReadOnlyModelAdmin)
-admin.site.register(Opportunity, ReadOnlyModelAdmin)
-admin.site.register(Recommendation, ReadOnlyModelAdmin)
-admin.site.register(DandBcompany, ReadOnlyModelAdmin)
-admin.site.register(Calendar, ReadOnlyModelAdmin)
-admin.site.register(Event, ReadOnlyModelAdmin)
+class UserAdmin(ReadOnlyModelAdmin):
+    list_display = ('name', 'username')
+    list_select_related = ()
+
+class DandBCompanyAdmin(ReadOnlyModelAdmin):
+    list_display = ('name',)
+    list_select_related = ()
+    
+class AccountAdmin(ReadOnlyModelAdmin):
+    list_display = ('name', 'account_number', 'parent', 'owner')
+    list_select_related = ()
+
+class ContactAdmin(ReadOnlyModelAdmin):
+    list_display = ('salutation', 'name', 'title')
+    list_display_links = ('name')
+    list_select_related = ()
+
+class LeadAdmin(ReadOnlyModelAdmin):
+    list_display = ('salutation', 'name', 'status')
+    list_display_links = ('name',)
+    list_select_related = ()
+    
+class OpportunityAdmin(ReadOnlyModelAdmin):
+    list_display = ('name', 'amount', 'close_date')
+    list_select_related = ()
+
+class CalendarAdmin(ReadOnlyModelAdmin):
+    list_display = ('name', 'user', 'type')
+    list_select_related = ()
+
+class EventAdmin(ReadOnlyModelAdmin):
+    list_display = ('subject', 'start_date_time', 'end_date_time', 'what', 'who')
+    list_select_related = ()
+    
+class RecommendationAdmin(admin.ModelAdmin):
+    list_display = ('score', 'reason1', 'account_id', 'owner_id')
+
+class LocationAdmin(admin.ModelAdmin):
+    list_display = ('related_to', 'latitude', 'longitude')
+    list_display_links = ('latitude', 'longitude')
+
+class RouteAdmin(admin.ModelAdmin):
+    list_display = ('start', 'end', 'distance')
+    list_display_links = ('distance')
+
+admin.site.register(User, UserAdmin)
+admin.site.register(DandBcompany, DandBCompanyAdmin)
+admin.site.register(Account, AccountAdmin)
+admin.site.register(Contact, ContactAdmin)
+admin.site.register(Lead, LeadAdmin)
+admin.site.register(Opportunity, OpportunityAdmin)
+admin.site.register(Calendar, CalendarAdmin)
+admin.site.register(Event, EventAdmin)
+admin.site.register(Recommendation, RecommendationAdmin)
+admin.site.register(Location, LocationAdmin)
+admin.site.register(Route, RouteAdmin)

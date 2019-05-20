@@ -1,7 +1,8 @@
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.serializers import serialize
 from engine.recommendations import main as get_schedules
-from .models import User, Account, Event, Recommendation
+from engine.tsp import TravellingSalesman
+from .salesforce.models import User, Account, Event, Recommendation
 from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, to_json
 import json
 import time
@@ -41,6 +42,14 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
             **to_json(newRec),
             'url': req.build_absolute_uri('/api/engine/recommedations/' + str(newRec.id))
         })
+
+class TSPEndpoint(Endpoint):
+    http_method_names = ['get']
+    
+    def get(self, req, *args, **kwargs):
+        tsp = TravellingSalesman()
+        solution = tsp.run()
+        return success(solution)
 
 class RecommendationsEndpoint(PermissionRequiredMixin, Endpoint):
     permission_required = 'web.engine_recalculate'
