@@ -18,7 +18,7 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         try:
             userId = data.get('userId')
         except KeyError:
-            raise GracefulError(error(req, 'Required parameter missing: "userId"'))
+            raise GracefulError(error(req, 'Required parameter missing: "userId"', 400))
         
         # Fetch User and Account objects
         user = User.objects.get(id = userId)
