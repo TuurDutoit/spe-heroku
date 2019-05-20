@@ -1,7 +1,7 @@
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.serializers import serialize
 from engine.recommendations import main as get_schedules
-from .models import User, Account, Recommendation
+from .models import User, Account, Event, Recommendation
 from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, to_json
 import json
 import time
@@ -61,3 +61,10 @@ class AccountsEndpoint(PermissionRequiredMixin, ModelEndpoint):
     Model = Account
     readable_keys = ['id', 'account_number', 'is_active']
     filterable_keys = ['id', 'is_active']
+
+
+class EventsEndpoint(PermissionRequiredMixin, ModelEndpoint):
+    permission_required = 'web.view_event'
+    http_method_names = ['get']
+    Model = Event
+    readable_keys = ['id', 'start_date_time', 'end_date_time', 'subject', 'location', 'who', 'what']

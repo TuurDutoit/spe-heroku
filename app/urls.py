@@ -22,5 +22,6 @@ urlpatterns = [
     path("api/engine/recommendations", csrf_exempt(web.api.RecommendationsEndpoint.as_view())),
     path("api/engine/recalculate", csrf_exempt(web.api.RecalculateEndpoint.as_view())),
     path("api/engine/accounts", web.api.AccountsEndpoint.as_view()),
+    path("api/engine/events", web.api.EventsEndpoint.as_view()),
     path("admin/", admin.site.urls),
 ]
