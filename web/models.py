@@ -500,7 +500,7 @@ class Lead(sf.Model):
     name = sf.CharField(max_length=121, verbose_name='Full Name', sf_read_only=sf.READ_ONLY)
     number_of_employees = sf.IntegerField(verbose_name='Employees', blank=True, null=True)
     numberof_locations = sf.DecimalField(custom=True, max_digits=3, decimal_places=0, verbose_name='Number of Locations', blank=True, null=True)
-    #owner = sf.ForeignKey('Group', sf.DO_NOTHING)  # Reference to tables [Group, User]
+    owner = sf.ForeignKey('User', sf.DO_NOTHING)  # Reference to tables [Group, User]
     phone = sf.CharField(max_length=40, blank=True, null=True)
     photo_url = sf.URLField(verbose_name='Photo URL', sf_read_only=sf.READ_ONLY, blank=True, null=True)
     postal_code = sf.CharField(max_length=20, verbose_name='Zip/Postal Code', blank=True, null=True)
@@ -662,7 +662,15 @@ class Recommendation(models.Model):
 class Location(models.Model):
     latitude = models.FloatField(validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)])
     longitude = models.FloatField(validators=[MinValueValidator(-180.0), MaxValueValidator(180.0)])
-    related_to = models.CharField(max_length=30)
+    related_to = models.CharField(max_length=20)
+    related_to_id = models.CharField(max_length=18)
+    related_to_component = models.CharField(max_length=20, null=True)
+    
+    class Meta:
+        unique_together = [
+            ('related_to', 'related_to_component', 'related_to_id')
+        ]
+    
 
 
 class Route(models.Model):
@@ -674,6 +682,12 @@ class Route(models.Model):
         indexes = [
             models.Index(fields=['start']),
             models.Index(fields=['end'])
+        ]
+        unique_together = [
+            ('start', 'end')
+        ]
+        permissions = [
+            ('refresh_routes', 'Refresh routes')
         ]
 
 
@@ -711,7 +725,7 @@ class AccountAdmin(ReadOnlyModelAdmin):
 
 class ContactAdmin(ReadOnlyModelAdmin):
     list_display = ('salutation', 'name', 'title')
-    list_display_links = ('name')
+    list_display_links = ('name',)
     list_select_related = ()
 
 class LeadAdmin(ReadOnlyModelAdmin):
@@ -735,12 +749,12 @@ class RecommendationAdmin(admin.ModelAdmin):
     list_display = ('score', 'reason1', 'account_id', 'owner_id')
 
 class LocationAdmin(admin.ModelAdmin):
-    list_display = ('related_to', 'latitude', 'longitude')
+    list_display = ('related_to', 'related_to_id', 'latitude', 'longitude')
     list_display_links = ('latitude', 'longitude')
 
 class RouteAdmin(admin.ModelAdmin):
     list_display = ('start', 'end', 'distance')
-    list_display_links = ('distance')
+    list_display_links = ('distance',)
 
 admin.site.register(User, UserAdmin)
 admin.site.register(DandBcompany, DandBCompanyAdmin)

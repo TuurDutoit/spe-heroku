@@ -2,7 +2,8 @@ from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.serializers import serialize
 from engine.recommendations import main as get_schedules
 from engine.tsp import TravellingSalesman
-from .salesforce.models import User, Account, Event, Recommendation
+from engine.maps import refresh_routes_for
+from .models import User, Account, Event, Recommendation
 from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, to_json
 import json
 import time
@@ -16,10 +17,7 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         data = RequestData(req)
         
         # Get userId from request
-        try:
-            userId = data.get('userId')
-        except KeyError:
-            raise GracefulError(error(req, 'Required parameter missing: "userId"', 400))
+        userId = data.get('userId', graceful=True)
         
         # Fetch User and Account objects
         user = User.objects.get(id = userId)
@@ -43,13 +41,28 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
             'url': req.build_absolute_uri('/api/engine/recommedations/' + str(newRec.id))
         })
 
-class TSPEndpoint(Endpoint):
+class TSPEndpoint(PermissionRequiredMixin, Endpoint):
+    permission_required = 'web.engine_recalculate'
     http_method_names = ['get']
     
     def get(self, req, *args, **kwargs):
-        tsp = TravellingSalesman()
+        data = RequestData(req)
+        userId = data.get('userId', graceful=True)
+        
+        tsp = TravellingSalesman(userId)
         solution = tsp.run()
         return success(solution)
+
+class RefreshEndpoint(PermissionRequiredMixin, Endpoint):
+    permission_required = 'web.refresh_routes'
+    http_method_names = ['post']
+    
+    def post(self, req, *args, **kwargs):
+        data = RequestData(req)
+        obj_name = data.get('object', graceful=True)
+        ids = data.getlist('ids', graceful=True)
+        refresh_routes_for(obj_name.lower(), ids)
+        return success()
 
 class RecommendationsEndpoint(PermissionRequiredMixin, Endpoint):
     permission_required = 'web.engine_recalculate'

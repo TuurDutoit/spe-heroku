@@ -234,7 +234,7 @@ def error(req, errors, status=500, auto_location=True):
         'errors': errors
     }, status=status)
 
-def success(data, status=200):
+def success(data=None, status=200):
     return JsonResponse({
         'success': True,
         'status': status,

@@ -1,11 +1,12 @@
 from __future__ import print_function
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
+from .data import get_locations_for, get_driving_times, get_meeting_times
 import time
 
 class TravellingSalesman:
     def __init__(self, userId):
-        self.data = data = create_data_model()
+        self.data = data = create_data_model(userId)
         self.manager = manager = pywrapcp.RoutingIndexManager(data['num_nodes'], data['num_vehicles'], data['depot'])
         self.model = pywrapcp.RoutingModel(manager)
         self.params = get_search_params()
@@ -21,17 +22,17 @@ class TravellingSalesman:
 class DataError(Exception):
     pass
 
-def create_data_model():
+def create_data_model(userId):
+    location_set = get_locations_for(userId)
+    
     data = {
-        'driving_times': [
-            [0, 30, 30],
-            [30, 0, 30],
-            [30, 30, 0]
-        ],
-        'meeting_times': [0, 60, 60],
+        'driving_times': get_driving_times(location_set),
+        'meeting_times': get_meeting_times(location_set),
         'num_vehicles': 1,
         'depot': 0
     }
+    
+    print(data)
     
     num_nodes = data['num_nodes'] = len(data['driving_times'])
     
@@ -85,6 +86,7 @@ def solution_to_dict(assignment, routing, exec_time):
         return None
     
     vehicles = []
+    meeting_times = routing.data['meeting_times']
     
     for vehicle in range(routing.data['num_vehicles']):
         index = routing.model.Start(vehicle)
@@ -97,16 +99,21 @@ def solution_to_dict(assignment, routing, exec_time):
             arc_distance = routing.model.GetArcCostForVehicle(
                 previous_index, index, vehicle)
             total_distance += arc_distance
+            from_node = routing.manager.IndexToNode(previous_index)
+            to_node = routing.manager.IndexToNode(index)
+            meeting_time = meeting_times[to_node]
             
             stops.append({
-                'from': routing.manager.IndexToNode(previous_index),
-                'to': routing.manager.IndexToNode(index),
-                'distance': arc_distance
+                'from': from_node,
+                'to': to_node,
+                'time:driving': arc_distance - meeting_time,
+                'time:meeting': meeting_time,
+                'time': arc_distance
             })
         
         vehicles.append({
             'number': vehicle,
-            'total_distance': total_distance,
+            'total_time': total_distance,
             'stops': stops
         })
     
