@@ -18,8 +18,6 @@ class LocationSet:
         self.locations = Location.objects.filter(related_to_id__in=self.all_ids)
         self.location_ids = [record.pk for record in self.locations]
         self.num_locations = len(self.location_ids)
-        
-        print(self)
     
     @staticmethod
     def for_user(userId):
@@ -38,19 +36,16 @@ def get_locations_for(userId):
 def get_driving_times(location_set):
     routes = Route.objects.filter(Q(start__in=location_set.location_ids) | Q(end__in=location_set.location_ids))
     driving_times = init_matrix(location_set.num_locations + 1)
-    print(location_set.location_ids)
-    print(driving_times)
     
     for route in routes:
         start_index = location_set.location_ids.index(route.start_id)
         end_index = location_set.location_ids.index(route.end_id)
-        print('Route ' + str(route.start_id) + ' -> ' + str(route.end_id) + ': ' + str(route.distance) + ' | (' + str(start_index) + ', ' + str(end_index) + ')')
         driving_times[start_index+1][end_index+1] = route.distance
     
     return driving_times
 
 def get_meeting_times(location_set):
-    return [0] + [60 for _ in range(location_set.num_locations)]
+    return [0] + [60*60 for _ in range(location_set.num_locations)]
 
 def init_matrix(size):
     return [[0] * size for _ in range(size)]

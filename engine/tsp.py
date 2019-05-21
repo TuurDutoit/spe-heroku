@@ -5,25 +5,28 @@ from .data import get_locations_for, get_driving_times, get_meeting_times
 import time
 
 class TravellingSalesman:
-    def __init__(self, userId):
-        self.data = data = create_data_model(userId)
+    def __init__(self, userId, timer):
+        timer.gstart('data')
+        self.data = data = create_data_model(userId, timer)
+        timer.gstop('data').start('model')
         self.manager = manager = pywrapcp.RoutingIndexManager(data['num_nodes'], data['num_vehicles'], data['depot'])
         self.model = pywrapcp.RoutingModel(manager)
         self.params = get_search_params()
         
         set_distance_callback(self)
+        timer.stop('model')
     
     def run(self):
-        start = time.time()
         assignment = self.model.SolveWithParameters(self.params)
-        end = time.time()
-        return solution_to_dict(assignment, self, end - start)
+        return solution_to_dict(assignment, self)
 
 class DataError(Exception):
     pass
 
-def create_data_model(userId):
+def create_data_model(userId, timer):
+    timer.gstart('load').start('locations')
     location_set = get_locations_for(userId)
+    timer.mark('locations', 'routes')
     
     data = {
         'driving_times': get_driving_times(location_set),
@@ -31,8 +34,7 @@ def create_data_model(userId):
         'num_vehicles': 1,
         'depot': 0
     }
-    
-    print(data)
+    timer.stop('routes').gstop('load').start('check')
     
     num_nodes = data['num_nodes'] = len(data['driving_times'])
     
@@ -48,6 +50,8 @@ def create_data_model(userId):
     if data['num_vehicles'] < 1:
         num_vehicles = data['num_vehicles']
         raise DataError('num_vehicles: at least 1 vehicle is required, got: ' + str(num_vehicles))
+    
+    timer.stop('check')
     
     return data
 
@@ -81,44 +85,33 @@ def get_search_params():
     
     return params
 
-def solution_to_dict(assignment, routing, exec_time):
+def solution_to_dict(assignment, routing):
     if not assignment:
         return None
     
-    vehicles = []
     meeting_times = routing.data['meeting_times']
+    index = routing.model.Start(0)
+    total_distance = 0
+    stops = []
     
-    for vehicle in range(routing.data['num_vehicles']):
-        index = routing.model.Start(vehicle)
-        total_distance = 0
-        stops = []
+    while not routing.model.IsEnd(index):
+        previous_index = index
+        index = assignment.Value(routing.model.NextVar(index))
+        arc_distance = routing.model.GetArcCostForVehicle(previous_index, index, 0)
+        total_distance += arc_distance
+        from_node = routing.manager.IndexToNode(previous_index)
+        to_node = routing.manager.IndexToNode(index)
+        meeting_time = meeting_times[to_node]
         
-        while not routing.model.IsEnd(index):
-            previous_index = index
-            index = assignment.Value(routing.model.NextVar(index))
-            arc_distance = routing.model.GetArcCostForVehicle(
-                previous_index, index, vehicle)
-            total_distance += arc_distance
-            from_node = routing.manager.IndexToNode(previous_index)
-            to_node = routing.manager.IndexToNode(index)
-            meeting_time = meeting_times[to_node]
-            
-            stops.append({
-                'from': from_node,
-                'to': to_node,
-                'time:driving': arc_distance - meeting_time,
-                'time:meeting': meeting_time,
-                'time': arc_distance
-            })
-        
-        vehicles.append({
-            'number': vehicle,
-            'total_time': total_distance,
-            'stops': stops
+        stops.append({
+            'from': from_node,
+            'to': to_node,
+            'time:driving': arc_distance - meeting_time,
+            'time:meeting': meeting_time,
+            'time': arc_distance
         })
-    
+        
     return {
-        '_time': exec_time,
-        'total_time': assignment.ObjectiveValue(),
-        'vehicles': vehicles
+        'time': total_distance,
+        'stops': stops
     }

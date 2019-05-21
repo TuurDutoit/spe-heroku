@@ -7,6 +7,7 @@ import re
 import logging
 import traceback
 import os
+import time
 
 QUERYSTRING_PATTERN = r'(^|&){}'
 FORMDATA_PATERN = r'--{}\s*Content-Disposition\s*:\s*form-data\s*;\s*name\s*=\s*"{}"'
@@ -269,3 +270,43 @@ def get_loc(string, index, component='body'):
 
 def to_json(obj):
     return json.loads(serialize('json', [obj]))[0]
+
+class Timer:
+    def __init__(self):
+        self.starts = {}
+        self.intervals = []
+        self._group = []
+        
+    def _name(self, name):
+        return name if len(self._group) == 0 else ':'.join(self._group) + ':' + name
+    
+    def start(self, name):
+        self.starts[self._name(name)] = time.time()
+        return self
+    
+    def stop(self, name):
+        self.intervals.append((self._name(name), time.time() - self.starts[self._name(name)]))
+        return self
+    
+    def mark(self, oldName, newName):
+        self.stop(oldName)
+        self.start(newName)
+        return self
+    
+    def gstart(self, name):
+        self.start(name)
+        self._group.append(name)
+        return self
+    
+    def gstop(self, name):
+        self._group.pop()
+        self.stop(name)
+        return self
+    
+    def to_dict(self):
+        d = {}
+        
+        for (name, duration) in self.intervals:
+            d[name] = duration
+        
+        return d

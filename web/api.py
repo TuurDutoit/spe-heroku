@@ -4,7 +4,7 @@ from engine.recommendations import main as get_schedules
 from engine.tsp import TravellingSalesman
 from engine.maps import refresh_routes_for
 from .models import User, Account, Event, Recommendation
-from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, to_json
+from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, to_json, Timer
 import json
 import time
 
@@ -46,23 +46,18 @@ class TSPEndpoint(PermissionRequiredMixin, Endpoint):
     http_method_names = ['get']
     
     def get(self, req, *args, **kwargs):
+        timer = Timer().start('parse')
         data = RequestData(req)
         userId = data.get('userId', graceful=True)
-        
-        tsp = TravellingSalesman(userId)
+        timer.stop('parse').gstart('init')
+        tsp = TravellingSalesman(userId, timer)
+        timer.gstop('init').start('run')
         solution = tsp.run()
+        timer.stop('run')
+        
+        solution['_time'] = timer.to_dict()
+        
         return success(solution)
-
-class RefreshEndpoint(PermissionRequiredMixin, Endpoint):
-    permission_required = 'web.refresh_routes'
-    http_method_names = ['post']
-    
-    def post(self, req, *args, **kwargs):
-        data = RequestData(req)
-        obj_name = data.get('object', graceful=True)
-        ids = data.getlist('ids', graceful=True)
-        refresh_routes_for(obj_name.lower(), ids)
-        return success()
 
 class RecommendationsEndpoint(PermissionRequiredMixin, Endpoint):
     permission_required = 'web.engine_recalculate'
