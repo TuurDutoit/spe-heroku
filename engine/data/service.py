@@ -20,9 +20,17 @@ class DataSet:
         locations = Location.objects.filter(related_to_id__in=self.all_ids)
         self.locations = RecordSet(locations)
     
-    def get_record_for_location(self, loc_id):
+    def get_record_for_location_index(self, loc_idx):
+        location = self.locations.all[loc_idx]
+        return self.get_record_for_location(location)
+    
+    def get_record_for_location_id(self, loc_id):
         location = self.locations.map[loc_id]
-        records = getattr(self, location.related_to.lower() + 's')
+        return self.get_record_for_location(location)
+    
+    def get_record_for_location(self, location):
+        rec_set_name = location.related_to.lower() + 's'
+        records = getattr(self, rec_set_name)
         return records.map[location.related_to_id]
     
     @staticmethod

@@ -1,6 +1,6 @@
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from engine.models.schedule import main as get_schedules
-from engine.models.tsp import TravellingSalesman
+from engine.models.recommendations import refresh_recommendations_for
 from engine.data.manage import handle_change
 from .models import User, Account, Event, Recommendation
 from .util import to_json
@@ -9,7 +9,7 @@ from .util.request import RequestData
 from .util.response import error, success
 
 
-class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
+class OldRecalculateEndpoint(PermissionRequiredMixin, Endpoint):
     permission_required = 'web.engine_recalculate'
     http_method_names = ['post']
 
@@ -41,7 +41,7 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
             'url': req.build_absolute_uri('/api/engine/recommedations/' + str(newRec.id))
         })
 
-class TSPEndpoint(PermissionRequiredMixin, Endpoint):
+class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
     permission_required = 'web.engine_recalculate'
     http_method_names = ['post']
     
@@ -53,24 +53,10 @@ class TSPEndpoint(PermissionRequiredMixin, Endpoint):
         # Update caches
         handle_change(change)
         
-        # Run TSP model
-        tsp = TravellingSalesman(userId)
-        solution = tsp.run()
+        # Recalculate recommendations
+        refresh_recommendations_for(userId)
         
-        return success(solution)
-
-class RecommendationsEndpoint(PermissionRequiredMixin, Endpoint):
-    permission_required = 'web.engine_recalculate'
-    http_method_names = ['get']
-    
-    def get(self, req, *args, **kwargs):
-        return success(get_schedules(EngineArgs()))
-
-class EngineArgs:
-    commute_time = 30
-    load_min = 480
-    load_max = 560
-    num_workers = 98
+        return success()
 
 class AccountsEndpoint(PermissionRequiredMixin, ModelEndpoint):
     permission_required = 'web.view_account'
@@ -85,3 +71,9 @@ class EventsEndpoint(PermissionRequiredMixin, ModelEndpoint):
     http_method_names = ['get']
     Model = Event
     readable_keys = ['id', 'start_date_time', 'end_date_time', 'subject', 'location', 'who', 'what']
+
+class RecommendationsEndpoint(PermissionRequiredMixin, ModelEndpoint):
+    permission_required = 'web.view_recommendation'
+    http_method_names = ['get']
+    Model = Recommendation
+    readable_keys = ['id', 'score', 'reason1', 'reason2', 'reason3', 'account_id', 'owner_id']

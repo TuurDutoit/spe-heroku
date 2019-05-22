@@ -381,11 +381,16 @@ class Account(sf.Model):
     upsell_opportunity = sf.CharField(custom=True, max_length=255, choices=[('Maybe', 'Maybe'), ('No', 'No'), ('Yes', 'Yes')], blank=True, null=True)
     website = sf.URLField(blank=True, null=True)
     year_started = sf.CharField(max_length=4, blank=True, null=True)
+    
     class Meta(sf.Model.Meta):
         db_table = 'Account'
         verbose_name = 'Account'
         verbose_name_plural = 'Accounts'
         # keyPrefix = '001'
+    
+    @property
+    def score(self):
+        return min(100, max(0, self.annual_revenue))
 
 
 
@@ -449,11 +454,16 @@ class Contact(sf.Model):
     salutation = sf.CharField(max_length=40, choices=[('Mr.', 'Mr.'), ('Ms.', 'Ms.'), ('Mrs.', 'Mrs.'), ('Dr.', 'Dr.'), ('Prof.', 'Prof.')], blank=True, null=True)
     system_modstamp = sf.DateTimeField(sf_read_only=sf.READ_ONLY)
     title = sf.CharField(max_length=128, blank=True, null=True)
+    
     class Meta(sf.Model.Meta):
         db_table = 'Contact'
         verbose_name = 'Contact'
         verbose_name_plural = 'Contacts'
         # keyPrefix = '003'
+    
+    @property
+    def score(self):
+        return 50
 
 
 
@@ -515,11 +525,16 @@ class Lead(sf.Model):
     system_modstamp = sf.DateTimeField(sf_read_only=sf.READ_ONLY)
     title = sf.CharField(max_length=128, blank=True, null=True)
     website = sf.URLField(blank=True, null=True)
+    
     class Meta(sf.Model.Meta):
         db_table = 'Lead'
         verbose_name = 'Lead'
         verbose_name_plural = 'Leads'
         # keyPrefix = '00Q'
+    
+    @property
+    def score(self):
+        return max(0, ['Cold', 'Warm', 'Hot'].index(self.rating) * 50)
 
 
 
