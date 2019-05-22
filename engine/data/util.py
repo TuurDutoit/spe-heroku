@@ -16,3 +16,16 @@ def select(items, key='pk'):
         l.append( getattr(item, key) )
     
     return l
+
+def print_matrix(matrix, hheader=None, vheader=None):
+    if vheader:
+        matrix = list(map(lambda elem, row: [elem] + row, vheader, matrix))
+    if hheader:
+        if vheader:
+            hheader = [''] + hheader
+        matrix = [hheader]+ matrix
+    
+    max_chars = max(map(lambda row: max(map(len, map(str, row))), matrix))
+    
+    for row in matrix:
+        print(' '.join(map(lambda elem: str(elem).ljust(max_chars), row)))

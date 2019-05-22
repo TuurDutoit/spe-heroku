@@ -19,15 +19,16 @@ def get_recommendations_for(userId):
     solution = tsp.run()
     recs = []
     
-    for location in solution.locations:
-        record = data.get_record_for_location(location)
-        
-        if isinstance(record, Account):
-            recs.append(Recommendation(
-                score = record.score,
-                reason1 = 'This account looks promising',
-                account_id = record.pk,
-                owner_id = userId
-            ))
+    if solution.solved:
+        for location in solution.locations:
+            record = data.get_record_for_location(location)
+            
+            if isinstance(record, Account):
+                recs.append(Recommendation(
+                    score = record.score,
+                    reason1 = 'This account looks promising',
+                    account_id = record.pk,
+                    owner_id = userId
+                ))
     
     return recs
