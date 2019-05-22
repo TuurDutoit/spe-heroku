@@ -1,8 +1,4 @@
 from web.models import Account, Location, Route
-import googlemaps
-import os
-
-maps = googlemaps.Client(key=os.environ['MAPS_API_KEY'])
 
 ADDRESS_COMPONENTS = ['street', 'city', 'state', 'postal_code', 'country']
 OBJECTS = {

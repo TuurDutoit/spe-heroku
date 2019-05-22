@@ -1,20 +1,16 @@
 from __future__ import print_function
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
-from .data import get_locations_for, get_driving_times, get_meeting_times
-import time
+from engine.data import get_data_set_for, get_driving_times, get_meeting_times
 
 class TravellingSalesman:
-    def __init__(self, userId, timer):
-        timer.gstart('data')
-        self.data = data = create_data_model(userId, timer)
-        timer.gstop('data').start('model')
+    def __init__(self, userId):
+        self.data = data = create_data_model(userId)
         self.manager = manager = pywrapcp.RoutingIndexManager(data['num_nodes'], data['num_vehicles'], data['depot'])
         self.model = pywrapcp.RoutingModel(manager)
         self.params = get_search_params()
         
         set_distance_callback(self)
-        timer.stop('model')
     
     def run(self):
         assignment = self.model.SolveWithParameters(self.params)
@@ -23,18 +19,15 @@ class TravellingSalesman:
 class DataError(Exception):
     pass
 
-def create_data_model(userId, timer):
-    timer.gstart('load').start('locations')
-    location_set = get_locations_for(userId)
-    timer.mark('locations', 'routes')
+def create_data_model(userId):
+    data_set = get_data_set_for(userId)
     
     data = {
-        'driving_times': get_driving_times(location_set),
-        'meeting_times': get_meeting_times(location_set),
+        'driving_times': get_driving_times(data_set),
+        'meeting_times': get_meeting_times(data_set),
         'num_vehicles': 1,
         'depot': 0
     }
-    timer.stop('routes').gstop('load').start('check')
     
     num_nodes = data['num_nodes'] = len(data['driving_times'])
     
@@ -50,8 +43,6 @@ def create_data_model(userId, timer):
     if data['num_vehicles'] < 1:
         num_vehicles = data['num_vehicles']
         raise DataError('num_vehicles: at least 1 vehicle is required, got: ' + str(num_vehicles))
-    
-    timer.stop('check')
     
     return data
 

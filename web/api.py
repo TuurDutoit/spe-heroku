@@ -1,12 +1,12 @@
 from django.contrib.auth.mixins import PermissionRequiredMixin
-from django.core.serializers import serialize
-from engine.recommendations import main as get_schedules
-from engine.tsp import TravellingSalesman
-from engine.maps import refresh_routes_for
+from engine.models.schedule import main as get_schedules
+from engine.models.tsp import TravellingSalesman
+from engine.data.manage import handle_change
 from .models import User, Account, Event, Recommendation
-from .util.endpoint import Endpoint, ModelEndpoint, RequestData, GracefulError, error, success, to_json, Timer
-import json
-import time
+from .util import to_json
+from .util.endpoint import Endpoint, ModelEndpoint
+from .util.request import RequestData
+from .util.response import error, success
 
 
 class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
@@ -43,19 +43,19 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
 
 class TSPEndpoint(PermissionRequiredMixin, Endpoint):
     permission_required = 'web.engine_recalculate'
-    http_method_names = ['get']
+    http_method_names = ['post']
     
-    def get(self, req, *args, **kwargs):
-        timer = Timer().start('parse')
+    def post(self, req, *args, **kwargs):
         data = RequestData(req)
         userId = data.get('userId', graceful=True)
-        timer.stop('parse').gstart('init')
-        tsp = TravellingSalesman(userId, timer)
-        timer.gstop('init').start('run')
-        solution = tsp.run()
-        timer.stop('run')
+        change = data.getdict('change', default=None)
         
-        solution['_time'] = timer.to_dict()
+        # Update caches
+        handle_change(change)
+        
+        # Run TSP model
+        tsp = TravellingSalesman(userId)
+        solution = tsp.run()
         
         return success(solution)
 
