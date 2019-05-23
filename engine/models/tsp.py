@@ -1,7 +1,8 @@
 from __future__ import print_function
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
-from engine.data import get_data_set_for, get_driving_times, get_service_times
+from engine.data import get_data_set_for
+from engine.data.util import s_to_h
 
 D_TIME = 'time'
 
@@ -15,22 +16,32 @@ class TravellingSalesman:
         self._setup()
     
     def _setup(self):
+        # Set global cost function as cumulative time
         transit_cb = set_transit_callback(self)
+        
+        # Add time constraint
+        #  1. Working day
         self.model.AddDimension(
             transit_cb,
-            60 * 60, # max. 1 hour waiting time
-            (18 - 9) * 60 * 60, # Working 9am to 6pm
+            (18 - 9) * 60 * 60,  # No maximum waiting time
+            (15 - 9) * 60 * 60, # Working 9am to 6pm
             True, # Travel time starts at 0, of course
             D_TIME
         )
         d_time = self.model.GetDimensionOrDie(D_TIME)
         
+        # TODO
+        #  2. Existing schedule (based on time windows)
+        
+        # Allow dropping nodes
+        for i in range(1, self.context['num_nodes']):
+            index = self.manager.NodeToIndex(i)
+            penalty = self.context['penalties'][i - 1]
+            self.model.AddDisjunction([index], penalty)
     
     def run(self):
         assignment = self.model.SolveWithParameters(self.params)
-        solution = Solution(assignment, self)
-        solution.print()
-        return solution
+        return Solution(assignment, self)
     
     @staticmethod
     def for_user(userId):
@@ -51,11 +62,12 @@ class Solution:
         
         d_time = routing.model.GetDimensionOrDie(D_TIME)
         index = routing.model.Start(0)
+        previous_departure = (0, 0)
         stops = []
 
         while not routing.model.IsEnd(index):
             stop = Stop()
-            previous_index, index = stop.update(locals())
+            index, previous_index, previous_departure = stop.update(locals())
             if not stop.is_depot:
                 stops.append(stop)
         
@@ -68,31 +80,53 @@ class Solution:
         if self.solved:
             return {
                 'time': self.time,
-                'locations': [loc.pk for loc in self.locations],
+                'locations': list(self.locations),
                 'stops': [stop.to_dict() for stop in self.stops]
             }
         else:
             return { 'solved': False }
         
     def print(self):
-        for stop in self.stops:
-            stop.print()
+        if not self.solved:
+            print('NO SOLUTION')
+            return
+            
+        pad = '                  '
+        print(pad + 'Depot')
+        prev_dep = (0, 0)
         
-        print('-' * 80)
-        print('Total time: {}'.format(self.time))
+        for stop in self.stops:
+            print(s_to_h(prev_dep[0]) + ' ' + s_to_h(stop.arrival[1] - stop.time_driving))
+            print(pad + 'Driving({}, {}, {})'.format(
+                s_to_h(stop.time_driving),
+                s_to_h(stop.arrival[0] - prev_dep[0] - stop.time_driving),
+                s_to_h(stop.arrival[1] - prev_dep[0] - stop.time_driving))
+            )
+            print(s_to_h(stop.arrival[0]) + ' ' + s_to_h(stop.arrival[1]))
+            print(pad + 'Service({}, {})'.format(s_to_h(stop.time_serving), stop.to_loc))
+            print(s_to_h(stop.departure[0]) + ' ' + s_to_h(stop.departure[1]))
+            prev_dep = stop.departure
 
 class Stop:
     def update(self, args):
         routing = args['routing']
-        data_set = routing.context['data_set']
+        locations = routing.context['locations']
         assignment = args['assignment']
+        d_time = args['d_time']
+        prev_dep = args['previous_departure']
+        
         previous_index = args['index']
         index = assignment.Value(routing.model.NextVar(previous_index))
         from_node = routing.manager.IndexToNode(previous_index)
         to_node = routing.manager.IndexToNode(index)
+        is_depot = to_node <= 0
+        
         driving_time = routing.context['driving_times'][from_node][to_node]
         service_time = routing.context['service_times'][to_node]
-        time_var = args['d_time'].CumulVar(index)
+        
+        time_var = d_time.CumulVar(index)
+        arrival = (assignment.Min(time_var), assignment.Max(time_var))
+        departure = (arrival[0] + service_time, arrival[1] + service_time)
         
         self.is_depot = to_node <= 0
         
@@ -105,42 +139,36 @@ class Stop:
             self.from_loc_idx = from_node - 1
             self.to_loc_idx = to_node - 1
             # Retrieve Location objects from data_set
-            self.from_loc = None if self.from_idx == 0 else data_set.locations.all[self.from_loc_idx]
-            self.to_loc = data_set.locations.all[self.to_loc_idx]
+            self.from_loc = None if self.from_idx == 0 else locations[self.from_loc_idx]
+            self.to_loc = locations[self.to_loc_idx]
             
+            # 0: soonest time at which we can or are allowed to arrive
+            # 1: latest time at which we are allowed to arrive
+            self.arrival = arrival
+            # arrival + service_time
+            self.departure = departure
+            # Time needed to drive to this location from the previous one
             self.time_driving = driving_time
+            # Time spent at this location
             self.time_serving = service_time
-            self.time = driving_time + service_time
-            self.arrival = (assignment.Min(time_var), assignment.Max(time_var))
-            self.departure = self.arrival[1] + service_time
-            self.slack = self.arrival[1] - self.arrival[0]
+            # Time you are expected to have to wait if everything goes smoothly at previous client
+            # In other words: the amount of time you are expected to be early
+            self.wait = arrival[0] - prev_dep[0] - driving_time
+            # Maximum amount of time you can afford to lose between the previous client and this one
+            # e.g. previous meeting runs out, traffic jams, etc.
+            self.slack = arrival[1] - prev_dep[0] - driving_time
         
-        return previous_index, index
+        return index, previous_index, prev_dep
     
     def to_dict(self):
-        return {
-            'from': {
-                'index': self.from_idx,
-                'location_index': self.from_loc_idx,
-                'location': None if not self.from_loc else self.from_loc.pk
-            },
-            'to': {
-                'index': self.to_idx,
-                'location_index': self.to_loc_idx,
-                'location': self.to_loc.pk
-            },
-            'time': {
-                'driving': self.time_driving,
-                'serving': self.time_serving,
-                'total': self.time,
-                'arrival': {
-                    'min': self.arrival[0],
-                    'max': self.arrival[1]
-                },
-                'departure': self.departure,
-                'slack': self.slack
+        if self.is_depot:
+            return { 'is_depot': True }
+        else:
+            return {
+                attr: getattr(self, attr)
+                for attr in ['from_idx', 'to_idx', 'from_loc_idx', 'to_loc_idx', 'from_loc', 'to_loc',
+                    'time_driving', 'time_serving', 'time', 'arrival', 'slack']
             }
-        }
     
     def print(self):
         print('Arrive({}-{}) {} Depart({}) Slack({})'.format(
@@ -151,18 +179,31 @@ class Stop:
             self.slack
         ))
 
+def get_var_val(var, assignment=None):
+    if not var:
+        print('No var')
+        return (0, 0, 0)
+    if assignment:
+        print('has assignment')
+        return (assignment.Min(var), assignment.Value(var), assignment.Max(var))
+    else:
+        print('no assignment')
+        return (var.Min(), var.Value() if var.Bound() else None, var.Max())
+
 def create_context_for(userId):
     return create_context(get_data_set_for(userId))
 
 def create_context(data_set):
     context = {
-        'data_set': data_set,
-        'driving_times': get_driving_times(data_set),
-        'service_times': get_service_times(data_set),
+        'locations': data_set.get_locations(),
+        'driving_times': data_set.get_driving_times(),
+        'service_times': data_set.get_service_times(),
+        'penalties': data_set.get_penalties(),
         'num_vehicles': 1,
         'depot': 0
     }
     
+    context['num_locations'] = len(context['locations'])
     num_nodes = context['num_nodes'] = len(context['driving_times'])
     
     if len(context['service_times']) != num_nodes:

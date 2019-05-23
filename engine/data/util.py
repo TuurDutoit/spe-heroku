@@ -1,3 +1,5 @@
+import math
+
 def init_matrix(size):
     return [[0] * size for _ in range(size)]
 
@@ -29,3 +31,11 @@ def print_matrix(matrix, hheader=None, vheader=None):
     
     for row in matrix:
         print(' '.join(map(lambda elem: str(elem).ljust(max_chars), row)))
+
+def s_to_h(secs):
+    seconds = secs % 60
+    secs = math.floor(secs / 60)
+    minutes = secs % 60
+    secs = math.floor(secs/ 60)
+    hours = secs % 60
+    return str(hours).rjust(2, '0') + ':' + str(minutes).rjust(2, '0') + ':' + str(seconds).rjust(2, '0')
