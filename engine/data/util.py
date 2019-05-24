@@ -19,7 +19,12 @@ def select(items, key='pk'):
     
     return l
 
-def print_matrix(matrix, hheader=None, vheader=None):
+def matrix_str(matrix, hheader=None, vheader=None, header=None):
+    if header:
+        if not vheader:
+            vheader = header
+        if not hheader:
+            hheader = header
     if vheader:
         matrix = list(map(lambda elem, row: [elem] + row, vheader, matrix))
     if hheader:
@@ -29,13 +34,7 @@ def print_matrix(matrix, hheader=None, vheader=None):
     
     max_chars = max(map(lambda row: max(map(len, map(str, row))), matrix))
     
-    for row in matrix:
-        print(' '.join(map(lambda elem: str(elem).ljust(max_chars), row)))
-
-def s_to_h(secs):
-    seconds = secs % 60
-    secs = math.floor(secs / 60)
-    minutes = secs % 60
-    secs = math.floor(secs/ 60)
-    hours = secs % 60
-    return str(hours).rjust(2, '0') + ':' + str(minutes).rjust(2, '0') + ':' + str(seconds).rjust(2, '0')
+    return '\n'.join([
+        ' '.join(map(lambda elem: str(elem).ljust(max_chars), row))
+        for row in matrix
+    ])

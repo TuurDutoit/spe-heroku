@@ -1,1 +1,1 @@
-from .service import *
+from .local import *

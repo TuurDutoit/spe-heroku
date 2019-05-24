@@ -1,16 +1,10 @@
 from django.db.models import Q
 from web.models import Account, Contact, Lead, Location, Route, Event
-from .util import init_matrix, map_from, select, print_matrix
+from ..common import RecordSet, DataSet
+from ..util import init_matrix
 import random
 
-class RecordSet:
-    def __init__(self, records, key='pk'):
-        self.all = records
-        self.map = map_from(records)
-        self.ids = select(records)
-        self.total = len(records)
-
-class DataSet:
+class DBDataSet(DataSet):
     def __init__(self, accounts, contacts, leads, events):
         self.accounts = RecordSet(accounts)
         self.contacts = RecordSet(contacts)
@@ -22,15 +16,6 @@ class DataSet:
         
         locations = Location.objects.filter(related_to_id__in=self.all_ids)
         self.locations = RecordSet(locations)
-    
-    @staticmethod
-    def for_user(userId):
-        return DataSet(
-            get_records_for(Account, userId),
-            get_records_for(Contact, userId),
-            get_records_for(Lead, userId),
-            get_records_for(Event, userId)
-        )
     
     def get_record_for_location_index(self, loc_idx):
         location = self.locations.all[loc_idx]
@@ -58,8 +43,6 @@ class DataSet:
         #     end_index = data_set.locations.ids.index(route.end_id)
         #     driving_times[start_index+1][end_index+1] = route.distance
 
-        header = [0] + self.locations.ids
-        print_matrix(driving_times, hheader=header, vheader=header)
         return driving_times
 
     def get_service_times(self):
@@ -69,11 +52,16 @@ class DataSet:
         return [24*60*60] * self.locations.total
 
     def get_locations(self):
-        return self.locations.all
-    
+        return self.locations.ids
+
+
+def get_data_set_for(userId):
+    return DBDataSet(
+        get_records_for(Account, userId),
+        get_records_for(Contact, userId),
+        get_records_for(Lead, userId),
+        get_records_for(Event, userId)
+    )
 
 def get_records_for(Model, userId):
     return Model.objects.filter(owner_id=userId)
-
-def get_data_set_for(userId):
-    return DataSet.for_user(userId)

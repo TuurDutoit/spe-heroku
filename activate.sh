@@ -1,3 +1,5 @@
-# By `source`ing this file, you can import all the variables in .env
+# Run the following command in your terminal to export the variables in .env
+sed 's/^/export /' .env > .env.sh
 set -a
-source .env
+source .env.sh
+rm .env.sh
