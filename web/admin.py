@@ -62,8 +62,8 @@ class RecommendationAdmin(admin.ModelAdmin):
 
 
 class LocationAdmin(admin.ModelAdmin):
-    list_display = ('related_to', 'related_to_id', 'latitude', 'longitude')
-    list_display_links = ('latitude', 'longitude')
+    list_display = ('pk', 'related_to', 'related_to_component', 'related_to_id', 'address', 'is_valid')
+    list_display_links = ('pk',)
 
 
 class RouteAdmin(admin.ModelAdmin):

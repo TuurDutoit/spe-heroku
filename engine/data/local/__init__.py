@@ -5,7 +5,7 @@ def get_data_set_for(userId):
     return MockDataSet(20)
 
 def handle_change(change):
-    pass
+    return [0] # Just return a bogus userId
 
 def remove_recommendations_for(userId):
     pass

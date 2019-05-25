@@ -31,17 +31,13 @@ class DBDataSet(DataSet):
         return records.map[location.related_to_id]
 
     def get_driving_times(self):
-        #routes = Route.objects.filter(Q(start__in=data_set.locations.ids) | Q(end__in=data_set.locations.ids))
+        routes = Route.objects.filter(Q(start__in=self.locations.ids) | Q(end__in=self.locations.ids))
         driving_times = init_matrix(self.locations.total + 1)
 
-        for i in range(1, self.locations.total + 1):
-            for j in range(1, self.locations.total + 1):
-                driving_times[i][j] = 0 if i == j else random.randint(0, 3*60*60)
-
-        # for route in routes:
-        #     start_index = data_set.locations.ids.index(route.start_id)
-        #     end_index = data_set.locations.ids.index(route.end_id)
-        #     driving_times[start_index+1][end_index+1] = route.distance
+        for route in routes:
+            start_index = self.locations.ids.index(route.start_id)
+            end_index = self.locations.ids.index(route.end_id)
+            driving_times[start_index+1][end_index+1] = route.distance
 
         return driving_times
 

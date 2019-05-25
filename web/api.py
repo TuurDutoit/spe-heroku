@@ -47,16 +47,24 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
     
     def post(self, req, *args, **kwargs):
         data = RequestData(req)
-        userId = data.get('userId', graceful=True)
         change = data.getdict('change', default=None)
         
-        # Update caches
-        handle_change(change)
+        # Update locations, routes, etc.
+        user_ids = handle_change(change)
         
         # Recalculate recommendations
-        refresh_recommendations_for(userId)
+        users = []
         
-        return success()
+        for userId in user_ids:
+            recs, solution = refresh_recommendations_for(userId)
+            users.append({
+                'userId': userId,
+                'recommendations': [to_json(rec) for rec in recs],
+                'solution': solution.__dict__,
+                'schedule': str(solution)
+            })
+        
+        return success(users)
 
 class AccountsEndpoint(PermissionRequiredMixin, ModelEndpoint):
     permission_required = 'web.view_account'

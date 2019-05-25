@@ -6,16 +6,6 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
 application = get_wsgi_application()
 
 
-# Actual TSP model
-from engine.data import get_data_set_for
-from engine.data.util import matrix_str
-from engine.models.tsp import TravellingSalesman, create_context
-
-data_set = get_data_set_for('0051i000001NHLCAA4')
-context = create_context(data_set)
-tsp = TravellingSalesman(context)
-solution = tsp.run()
-
-
-print(matrix_str(context['driving_times'], header=context['nodes']))
-print(solution)
+# Actual code
+from engine.data.remote.routes.manage import refresh_routes
+refresh_routes('account', ['0011i00000BnM4LAAV', '0011i00000BnM09AAF','0011i00000BnM3hAAF', '0011i00000Bmx6XAAR', '0011i000007AZgwAAG'], 'insert')

@@ -1,11 +1,13 @@
 from web.models import Recommendation
-from .routes.manage import refresh_routes_for
+from .routes.manage import refresh_routes
 
 def handle_change(change):
     if not change:
-        return
+        return []
     if change['type'] == 'object':
-        refresh_routes_for(change['object'], change['records'])
+        return refresh_routes(change['objectName'], change['records'], change['action'])
+    if change['type'] == 'manual':
+        return [change['userId']]
 
 def remove_recommendations_for(userId):
     Recommendation.objects.filter(owner_id=userId).delete()

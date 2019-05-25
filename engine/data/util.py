@@ -1,7 +1,7 @@
 import math
 
-def init_matrix(size):
-    return [[0] * size for _ in range(size)]
+def init_matrix(size, default=0):
+    return [[default] * size for _ in range(size)]
 
 def map_from(items, key='pk'):
     m = {}

@@ -390,7 +390,7 @@ class Account(sf.Model):
     
     @property
     def score(self):
-        return min(100, max(0, self.annual_revenue))
+        return min(100, max(0, self.annual_revenue / 25_000_000)) if self.annual_revenue else 0
 
 
 
@@ -675,11 +675,12 @@ class Recommendation(models.Model):
 
 
 class Location(models.Model):
-    latitude = models.FloatField(validators=[MinValueValidator(-90.0), MaxValueValidator(90.0)])
-    longitude = models.FloatField(validators=[MinValueValidator(-180.0), MaxValueValidator(180.0)])
+    address = models.CharField(max_length=255)
+    is_valid = models.BooleanField()
     related_to = models.CharField(max_length=20)
     related_to_id = models.CharField(max_length=18)
     related_to_component = models.CharField(max_length=20, null=True)
+    owner_id = models.CharField(max_length=18)
     
     class Meta:
         unique_together = [

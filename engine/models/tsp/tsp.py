@@ -31,6 +31,9 @@ class TravellingSalesman:
         # TODO
         #  2. Existing schedule (based on time windows)
         
+        # TODO
+        # 3. Don't visit locations related to the same record
+        
         # Allow dropping nodes
         for i in range(1, self.context['num_nodes']):
             index = self.manager.NodeToIndex(i)
@@ -76,11 +79,24 @@ class Solution:
                 
         self.locations = [stop.location for stop in self.stops]
     
+    @property
+    def __dict__(self):
+        if not self.solved:
+            return { 'solved': False }
+        else:
+            return {
+                'solved': True,
+                'time': self.time,
+                'locations': list(self.locations),
+                'stops': [stop.__dict__ for stop in self.stops]
+            }
+    
     def __repr__(self):
         if not self.solved:
             data = { 'solved': False }
         else:
             data = {
+                'solved': True,
                 'time': self.time,
                 'locations': list(self.locations),
                 'stops': '[' + ', '.join([stop.__repr__() for stop in self.stops]) + ']'

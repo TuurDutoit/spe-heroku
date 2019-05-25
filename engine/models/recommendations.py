@@ -9,11 +9,11 @@ logger = logging.getLogger(__name__)
 
 def refresh_recommendations_for(userId):
     with transaction.atomic():
-        recs = get_recommendations_for(userId)
+        recs, solution = get_recommendations_for(userId)
         remove_recommendations_for(userId)
         insert_recommendations(recs)
     
-    return recs
+    return recs, solution
         
 
 def get_recommendations_for(userId):
@@ -41,4 +41,4 @@ def get_recommendations_for(userId):
     else:
         logger.warning('Not creating recommendations: solution not solved, or using a mock data set')
     
-    return recs
+    return recs, solution
