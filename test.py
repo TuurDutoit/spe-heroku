@@ -8,4 +8,12 @@ application = get_wsgi_application()
 
 # Actual code
 from engine.data.remote.routes.manage import refresh_routes
-refresh_routes('account', ['0011i00000BnM4LAAV', '0011i00000BnM09AAF','0011i00000BnM3hAAF', '0011i00000Bmx6XAAR', '0011i000007AZgwAAG'], 'insert')
+from web.models import Account, Route, Location
+
+# Delete old data
+Route.objects.all().delete()
+Location.objects.all().delete()
+
+# Insert fresh data
+account_ids = [a.pk for a in Account.objects.filter(owner_id='0051i000001NHLCAA4')]
+refresh_routes('account', account_ids, 'insert')

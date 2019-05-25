@@ -129,6 +129,8 @@ def action_update(obj_name, ids):
     
     Route.objects.bulk_create(routes_to_create)
     delete_routes_for(invalid_locations)
+    
+    return user_ids
 
 
 # Given a number of new or updated locations (maybe_valid_locations)
