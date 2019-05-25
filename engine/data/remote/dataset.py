@@ -1,8 +1,8 @@
 from django.db.models import Q
 from web.models import Account, Contact, Lead, Location, Route, Event
-from .manage import get_locations_related_to_map, get_routes_for_location_ids
-from ..common import RecordSet, DataSet
+from .util import get_locations_related_to_map, get_routes_for_location_ids
 from ..util import init_matrix
+from ..common import RecordSet, DataSet
 import random
 
 class DBDataSet(DataSet):
