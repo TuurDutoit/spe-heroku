@@ -149,6 +149,7 @@ def update_routes(maybe_valid_locations, other_locations, existing_routes, route
     all_addresses = [loc.address for loc in all_locations]
     num_updated_locations = len(maybe_valid_locations)
     num_locations = len(all_locations)
+    logger.debug('locations: %s', all_locations)
     logger.debug('existing routes: %s', existing_routes)
 
     # Get distance matrix for all locations, both the ones we just created or updated
@@ -175,7 +176,7 @@ def update_routes(maybe_valid_locations, other_locations, existing_routes, route
                 start = all_locations[i]
                 end = all_locations[j]
                 
-                logger.debug('start: %s, end: %s', start, end)
+                logger.debug('(%s, %s) start: %s, end: %s', i, j, start, end)
                 
                 # Don't enable this check yet, as the TSP model doesn't support it yet
                 """
