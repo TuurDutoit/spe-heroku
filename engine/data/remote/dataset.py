@@ -1,5 +1,6 @@
 from django.db.models import Q
 from web.models import Account, Contact, Lead, Location, Route, Event
+from .manage import get_locations_related_to_map, get_routes_for_location_ids
 from ..common import RecordSet, DataSet
 from ..util import init_matrix
 import random
@@ -11,10 +12,15 @@ class DBDataSet(DataSet):
         self.leads = RecordSet(leads)
         self.all_ids = self.accounts.ids + self.contacts.ids + self.leads.ids
         self.total = len(self.all_ids)
+        self.id_map = {
+            'account': self.accounts.ids,
+            'contact': self.contact.ids,
+            'lead': self.lead.ids
+        }
         
         self.events = RecordSet(events)
         
-        locations = Location.objects.filter(related_to_id__in=self.all_ids)
+        locations = get_locations_related_to_map(self.id_map)
         self.locations = RecordSet(locations)
     
     def get_record_for_location_index(self, loc_idx):
@@ -31,7 +37,7 @@ class DBDataSet(DataSet):
         return records.map[location.related_to_id]
 
     def get_driving_times(self):
-        routes = Route.objects.filter(Q(start__in=self.locations.ids) | Q(end__in=self.locations.ids))
+        routes = get_routes_for_location_ids(self.locations.ids)
         driving_times = init_matrix(self.locations.total + 1)
 
         for route in routes:

@@ -1,6 +1,7 @@
 from django.db.models import Q
 from web.models import Account, Location, Route
 from .maps import geocode, distance_matrix
+from ..manage import get_locations_related_to, get_locations_for, get_routes_for_locations
 import logging
 
 logger = logging.getLogger(__name__)
@@ -252,11 +253,6 @@ def init_locations(obj_name, ids, create_or_update_location, context=None):
     return invalid_locations, maybe_valid_locations_by_owner, user_ids
 
 
-def get_locations_related_to(obj_name, ids):
-    return Location.objects.filter(related_to=obj_name, related_to_id__in=ids)
-
-def get_locations_for(userId):
-    return Location.objects.filter(owner_id=userId, is_valid=True)
 
 def get_other_locations(userId, locations):
     return get_locations_for(userId).exclude(
@@ -274,12 +270,8 @@ def create_location_map(locations):
 def get_records(obj, ids):
     return obj['model'].objects.filter(pk__in=ids).only(*obj['relevant_fields'])
 
-def get_routes_for(locations):
-    ids = [loc.pk for loc in locations]
-    return Route.objects.filter(Q(start_id__in=ids) | Q(end_id__in=ids))
-
 def get_route_map(locations):
-    routes = get_routes_for(locations)
+    routes = get_routes_for_locations(locations)
     m = dict()
     
     for route in routes:
@@ -288,7 +280,7 @@ def get_route_map(locations):
     return m
 
 def delete_routes_for(locations):
-    get_routes_for(locations).delete()
+    get_routes_for_locations(locations).delete()
 
 def get_address(record, component):
     parts = []
