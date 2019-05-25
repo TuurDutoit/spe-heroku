@@ -1,7 +1,7 @@
 from django.db.models import Q
 from web.models import Account, Location, Route
 from .maps import geocode, distance_matrix
-from ..manage import get_locations_related_to, get_locations_for, get_routes_for_locations
+from ..manage import get_locations_related_to, get_locations_for, get_routes_for_locations, get_record_ids
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,10 +19,8 @@ OBJECTS = {
 def refresh_routes(obj_name, ids, action):
     if action == 'delete':
         return action_delete(obj_name, ids)
-    elif action == 'insert':
-        return action_insert(obj_name, ids)
-    elif action == 'update':
-        return action_update(obj_name, ids)
+    elif action == 'insert' or action == 'update':
+        return action_upsert(obj_name, ids)
     else:
         logger.warning('Unknown action: ' + action)
         return []
@@ -38,100 +36,73 @@ def action_delete(obj_name, ids):
     return user_ids
 
 
-def create_location(record, component, address, obj_name):
-    return Location(
-        address=address,
-        related_to=obj_name,
-        related_to_component=component,
-        related_to_id=record.pk,
-        owner_id=record.owner_id,
-        is_valid=True  # Set to True for now, we'll correct this after a sanity check and geocoding
-    )
-
-def action_insert(obj_name, ids):
-    # Create new Locations for the new records
-    (
-        invalid_locations,
-        maybe_valid_locations_by_owner,
-        user_ids
-    ) = init_locations(obj_name, ids, create_location)
-    
-    valid_locations = []
-    routes = []
-    
-    # For every user:
-    # Fetch a distance matrix between all their locations and create new Route records
-    for userId in user_ids:
-        maybe_valid_locations = maybe_valid_locations_by_owner[userId]
-        other_locations = get_locations_for(userId)
-        update_routes(maybe_valid_locations, other_locations, {}, routes, valid_locations, invalid_locations)
-    
-    # Mark all invalid locations
-    # We can only do this after the loop above, because it can add locations to invalid_locations
-    # depending on the results of the geocoding
-    for loc in invalid_locations:
-        loc.is_valid = False
-    
-    Location.objects.bulk_create(invalid_locations + valid_locations)
-    print(invalid_locations)
-    print(invalid_locations[0])
-    print(invalid_locations[0].pk)
-    for route in routes:
-        route.start_id = route.start.pk
-        route.end_id = route.end.pk
-    print(routes)
-    print(routes[0])
-    print(routes[0].start)
-    print(routes[0].start_id)
-    Route.objects.bulk_create(routes)
-    
-    return user_ids
-
-
-def update_location(record, component, address, locations):
-        location = locations[(component, record.pk)]
-
+def upsert_location(record, component, address, existing_locations, obj_name):
+    if (component, record.pk) in existing_locations:
+        location = existing_locations[(component, record.pk)]
+        
         # If the address was changed, update the location and return it, so its related Routes can be updated
         # If it wasn't changed, return None. This way, related Routes won't be updated
         #   (except for routes related to this location and one that was updated, of course)
         if location.address != address:
             location.address = address
-            return location
+            return location, False
+    else:
+        return Location(
+            address=address,
+            related_to=obj_name,
+            related_to_component=component,
+            related_to_id=record.pk,
+            owner_id=record.owner_id,
+            is_valid=True  # Set to True for now, we'll correct this after a sanity check and geocoding
+        ), True
 
-def action_update(obj_name, ids):
-    locations = create_location_map(get_locations_related_to(obj_name, ids))
+def action_upsert(obj_name, ids):
+    existing_locations = create_location_map(get_locations_related_to(obj_name, ids))
+    locations, user_ids = init_locations(obj_name, ids, upsert_location, existing_locations, obj_name)
     
-    # Fetch and update Locations for the updated records
-    (
-        invalid_locations,
-        maybe_valid_locations_by_owner,
-        user_ids
-    ) = init_locations(obj_name, ids, update_location, locations)
-    
+    invalid_locations = locations['invalid']
     valid_locations = []
     routes_to_create = []
     
     for userId in user_ids:
-        maybe_valid_locations = maybe_valid_locations_by_owner[userId]
+        maybe_valid_locations = locations['maybe_valid_by_owner'][userId]
         other_locations = get_other_locations(userId, maybe_valid_locations)
-        logger.debug('Other locations: %s', other_locations)
-        logger.debug('Other location IDs: %s', [loc.pk for loc in other_locations])
         all_locations = maybe_valid_locations + list(other_locations)
         route_map = get_route_map(all_locations)
-        update_routes(maybe_valid_locations, other_locations, route_map, routes_to_create, valid_locations, invalid_locations)
+        
+        update_routes(maybe_valid_locations, other_locations, route_map,
+                      routes_to_create, valid_locations, invalid_locations)
     
+    # Mark all (in)valid locations
+    # We can only do this after the loop above, because it can add locations to invalid_locations
+    # depending on the results of the geocoding
+    # We don't save them here, because they might have to be created,
+    # which is more efficient with a single bulk_create call
     for loc in invalid_locations:
         loc.is_valid = False
-        loc.save()
     
     for loc in valid_locations:
-        loc.is_valid = True
+        is_valid = True
+    
+    # Save all Locations that have changed
+    for loc in locations['to_update']:
         loc.save()
     
-    Route.objects.bulk_create(routes_to_create)
-    delete_routes_for(invalid_locations)
+    # Create new Locations
+    # This requires the new PKs to be populated, which is only supported in PostgreSQL!
+    Location.objects.bulk_create(locations['to_create'])
     
-    return user_ids
+    # Even though PKs are populated on the Location object above,
+    # the start/end locations were added earlier, when the PKs for the new Locations weren't available yet
+    # Let's fix that here
+    for route in routes_to_create:
+        route.start_id = route.start.pk
+        route.end_id = route.end.pk
+    
+    # Create new routes, and delete ones related to invalid locations
+    # The ones that need updating have been save()d in update_routes
+    Route.objects.bulk_create(routes_to_create)
+    delete_routes_for(locations['invalid'])
 
 
 # Given a number of new or updated locations (maybe_valid_locations)
@@ -149,15 +120,12 @@ def action_update(obj_name, ids):
 #     No routes will be created for them, however
 #  - Updates to routes are done immediately, but routes that need to be created are added to routes_to_create
 #     This allows the use of bulk_create
-def update_routes(maybe_valid_locations, other_locations, existing_routes, routes_to_create, valid_locations, invalid_locations):
+def update_routes(maybe_valid_locations, other_locations, existing_routes,
+                  routes_to_create, valid_locations, invalid_locations):
     all_locations = maybe_valid_locations + list(other_locations)
     all_addresses = [loc.address for loc in all_locations]
     num_updated_locations = len(maybe_valid_locations)
     num_locations = len(all_locations)
-    logger.debug('maybe locations: %s', maybe_valid_locations)
-    logger.debug('other locations: %s', other_locations)
-    logger.debug('all locations: %s', all_locations)
-    logger.debug('existing routes: %s', existing_routes)
 
     # Get distance matrix for all locations, both the ones we just created or updated
     # and existing unchanged ones
@@ -183,8 +151,6 @@ def update_routes(maybe_valid_locations, other_locations, existing_routes, route
                 start = all_locations[i]
                 end = all_locations[j]
                 
-                logger.debug('(%s, %s) start: %s, end: %s', i, j, start, end)
-                
                 # Don't enable this check yet, as the TSP model doesn't support it yet
                 """
                 # Also don't create routes from/to the same record (but different component)
@@ -209,21 +175,24 @@ def update_routes(maybe_valid_locations, other_locations, existing_routes, route
 
 
 # Creates or updates Locations for the affected records
-# These are sorted into two lists:
-#  - invalid_locations: locations with an empty address, not worth passing to distance_matrix
-#  - maybe_valid_locations: locations with an address, to be passed to distance_matrix
-#     These can still turn out to be invalid though!
+# These are sorted two times (so every location is included in 2 lists):
+#  - Based on validity:
+#     - invalid_locations: locations with an empty address, not worth passing to distance_matrix
+#     - maybe_valid_locations: locations with an address, to be passed to distance_matrix
+#        These can still turn out to be invalid though!
+#  - Based on update/create:
+#     - locations_to_create: locations that don't exist yet in the database
+#     - locations_to_update: locations that do exist already
 # It also extracts the userId's of the affected users
 # The actual creation of new Locations or retrieval of existing ones is done in a callback
-def init_locations(obj_name, ids, create_or_update_location, context=None):
+def init_locations(obj_name, ids, create_or_update_location, *cb_extras):
     obj = OBJECTS[obj_name]
     records = get_records(obj, ids)
     maybe_valid_locations_by_owner = {}
     invalid_locations = []
+    locations_to_update = []
+    locations_to_create = []
     user_ids = set()
-    
-    if not context:
-        context = obj_name
     
     # For each Address compound field of each record...
     for record in records:
@@ -238,25 +207,39 @@ def init_locations(obj_name, ids, create_or_update_location, context=None):
         for component in obj['components']:
             # Format the address and get a Location object from the callback
             address = get_address(record, component)
-            location = create_or_update_location(record, component, address, context)
+            res = create_or_update_location(record, component, address, *cb_extras)
             
             # Location == None means that it wasn't changed,
             # so we don't include it in the locations to update/create routes for
-            if location:
+            if res:
+                (location, create) = res
                 if location.address and location.address.strip():
                     # The address is not empty, so let's try to process it
                     maybe_valid_locations.append(location)
                 else:
                     # The address is empty, don't even try to create routes
                     invalid_locations.append(location)
+                
+                if create:
+                    # This location needs to be created (e.g. with bulk_create())
+                    locations_to_create.append(location)
+                else:
+                    # This location needs to be updated (e.g. with save())
+                    locations_to_update.append(location)
     
-    return invalid_locations, maybe_valid_locations_by_owner, user_ids
+    locations = {
+        'maybe_valid_by_owner': maybe_valid_locations_by_owner,
+        'invalid': invalid_locations,
+        'to_create': locations_to_create,
+        'to_update': locations_to_update
+    }
+    return locations, user_ids
 
 
 
 def get_other_locations(userId, locations):
     return get_locations_for(userId).exclude(
-            pk__in=[loc.pk for loc in locations]
+            pk__in=get_record_ids(locations)
         )
 
 def create_location_map(locations):

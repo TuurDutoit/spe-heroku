@@ -17,7 +17,7 @@ def insert_recommendations(recs):
     Recommendation.objects.bulk_create(recs)
 
 def get_record_ids(records):
-    return [record.pk for record in records]
+    return [record.pk for record in records if record.pk != None]
 
 def get_locations_related_to(obj_name, records):
     return get_locations_related_to_ids(obj_name, get_record_ids(records))
