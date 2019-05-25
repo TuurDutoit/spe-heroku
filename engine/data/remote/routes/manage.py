@@ -113,6 +113,8 @@ def action_update(obj_name, ids):
     for userId in user_ids:
         maybe_valid_locations = maybe_valid_locations_by_owner[userId]
         other_locations = get_other_locations(userId, maybe_valid_locations)
+        logger.debug('Other locations: %s', other_locations)
+        logger.debug('Other location IDs: %s', [loc.pk for loc in other_locations])
         all_locations = maybe_valid_locations + list(other_locations)
         route_map = get_route_map(all_locations)
         update_routes(maybe_valid_locations, other_locations, route_map, routes_to_create, valid_locations, invalid_locations)
@@ -149,7 +151,9 @@ def update_routes(maybe_valid_locations, other_locations, existing_routes, route
     all_addresses = [loc.address for loc in all_locations]
     num_updated_locations = len(maybe_valid_locations)
     num_locations = len(all_locations)
-    logger.debug('locations: %s', all_locations)
+    logger.debug('maybe locations: %s', maybe_valid_locations)
+    logger.debug('other locations: %s', other_locations)
+    logger.debug('all locations: %s', all_locations)
     logger.debug('existing routes: %s', existing_routes)
 
     # Get distance matrix for all locations, both the ones we just created or updated
@@ -254,7 +258,7 @@ def get_locations_for(userId):
 
 def get_other_locations(userId, locations):
     return get_locations_for(userId).exclude(
-            related_to_id__in=[loc.pk for loc in locations]
+            pk__in=[loc.pk for loc in locations]
         )
 
 def create_location_map(locations):
