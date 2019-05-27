@@ -103,6 +103,8 @@ def action_upsert(obj_name, ids):
     # The ones that need updating have been save()d in update_routes
     Route.objects.bulk_create(routes_to_create)
     delete_routes_for(locations['invalid'])
+    
+    return user_ids
 
 
 # Given a number of new or updated locations (maybe_valid_locations)
@@ -159,7 +161,7 @@ def update_routes(maybe_valid_locations, other_locations, existing_routes,
                 """
 
                 # If a route already exists, update it (if needed)
-                if (start.pk, end.pk) in existing_routes:
+                if start.pk and end.pk and (start.pk, end.pk) in existing_routes:
                     route = existing_routes[(start.pk, end.pk)]
                     if route.distance != d:
                         route.distance = d
