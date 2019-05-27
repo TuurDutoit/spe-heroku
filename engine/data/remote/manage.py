@@ -6,7 +6,7 @@ def handle_change(change):
     if change['type'] == 'manual':
         return [change['userId']]
     elif change['type'] == 'object':
-        refresh_routes(change['objectName'], change['records'], change['action'])
+        return refresh_routes(change['objectName'], change['records'], change['action'])
     else:
         return []
 

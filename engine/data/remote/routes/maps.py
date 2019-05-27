@@ -43,7 +43,7 @@ def distance_matrix(addresses, num_new_locations):
                     directions = maps.directions(origin=addresses[i], destination=addresses[j])[0]
                     distances[i][j] = directions['routes'][0]['legs'][0]['duration']['value']
                 except Exception as e:
-                    logger.debug('Maps error: %s | %s -> %s', e, addresses[i], addresses[j])
+                    logger.debug('Maps error (%s): %s | %s -> %s', type(e), e, addresses[i], addresses[j])
                     distances[i][j] = None
                     
                     if isinstance(e, GoogleMapsApiError):
