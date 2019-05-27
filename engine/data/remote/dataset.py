@@ -14,8 +14,8 @@ class DBDataSet(DataSet):
         self.total = len(self.all_ids)
         self.id_map = {
             'account': self.accounts.ids,
-            'contact': self.contact.ids,
-            'lead': self.lead.ids
+            'contact': self.contacts.ids,
+            'lead': self.leads.ids
         }
         
         self.events = RecordSet(events)
