@@ -41,6 +41,16 @@ class OldRecalculateEndpoint(PermissionRequiredMixin, Endpoint):
             'url': req.build_absolute_uri('/api/engine/recommedations/' + str(newRec.id))
         })
 
+class ChangeEndpoint(PermissionRequiredMixin, Endpoint):
+    permission_required = 'web.engine_recalculate'
+    http_method_names = ['post']
+    
+    def post(self, req, *args, **kwargs):
+        data = RequestData(req)
+        change = data.getdict('change', default=None)
+        user_ids = handle_change(change)
+        success(user_ids)
+
 class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
     permission_required = 'web.engine_recalculate'
     http_method_names = ['post']
