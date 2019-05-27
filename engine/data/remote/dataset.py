@@ -4,6 +4,10 @@ from .util import get_locations_related_to_map, get_routes_for_location_ids
 from ..util import init_matrix
 from ..common import RecordSet, DataSet
 import random
+import datetime
+
+MORNING = datetime.time(0, 0, 0, 0)
+EVENING = datetime.time(23, 59, 59, 999)
 
 class DBDataSet(DataSet):
     def __init__(self, accounts, contacts, leads, events):
@@ -57,13 +61,16 @@ class DBDataSet(DataSet):
         return self.locations.ids
 
 
-def get_data_set_for(userId):
+def get_data_set_for(userId, date=datetime.date.today()):
     return DBDataSet(
         get_records_for(Account, userId),
         get_records_for(Contact, userId),
         get_records_for(Lead, userId),
-        get_records_for(Event, userId)
+        get_records_for(Event, userId,
+            start_date_time__lte=datetime.combine(date, EVENING, tzinfo=datetime.timezone.utc),
+            end_date_time__gte=datetime.combine(date, MORNING, tzinfo=datetime.timezone.utc)
+        )
     )
 
-def get_records_for(Model, userId):
-    return Model.objects.filter(owner_id=userId)
+def get_records_for(Model, userId, **filters):
+    return Model.objects.filter(owner_id=userId, **filters)
