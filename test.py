@@ -20,4 +20,4 @@ account_ids = [a.pk for a in Account.objects.filter(owner_id='0051i000001NHLCAA4
 refresh_routes('account', account_ids, 'insert')
 """
 
-refresh_routes('account', ['0011i00000BnQFFAA3'], 'insert')
+refresh_routes('account', ['0011i00000BnQFFAA3'], 'update')

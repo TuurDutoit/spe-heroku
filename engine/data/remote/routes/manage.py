@@ -1,6 +1,6 @@
 from django.db.models import Q
 from web.models import Account, Location, Route
-from .maps import geocode, distance_matrix
+from .maps import distance_matrix
 from ..util import get_locations_for, get_locations_related_to_ids, get_routes_for_locations, get_record_ids
 import logging
 
@@ -27,7 +27,7 @@ def refresh_routes(obj_name, ids, action):
 
 
 def action_delete(obj_name, ids):
-    locations = get_locations_related_to_ids(obj_name, ids).only('owner_id')
+    locations = get_locations_related_to_ids(obj_name, ids, all=True).only('owner_id')
     user_ids = [loc.owner_id for loc in locations]
     
     # Routes are deleted automatically because of the CASCADE policy
@@ -57,7 +57,7 @@ def upsert_location(record, component, address, existing_locations, obj_name):
         ), True
 
 def action_upsert(obj_name, ids):
-    existing_locations = create_location_map(get_locations_related_to_ids(obj_name, ids))
+    existing_locations = create_location_map(get_locations_related_to_ids(obj_name, ids, all=True))
     locations, user_ids = init_locations(obj_name, ids, upsert_location, existing_locations, obj_name)
     
     invalid_locations = locations['invalid']

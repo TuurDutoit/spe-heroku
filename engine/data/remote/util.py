@@ -4,20 +4,25 @@ from web.models import Location, Route
 def get_record_ids(records):
     return [record.pk for record in records if record.pk != None]
 
-def get_locations_related_to(obj_name, records):
-    return get_locations_related_to_ids(obj_name, get_record_ids(records))
+def get_locations_related_to(obj_name, records, all=False):
+    return get_locations_related_to_ids(obj_name, get_record_ids(records), all)
 
-def get_locations_related_to_ids(obj_name, ids):
-    return Location.objects.filter(
-        related_to=obj_name,
-        related_to_id__in=ids,
-        is_valid=True
-    )
+def get_locations_related_to_ids(obj_name, ids, all=False):
+    query = Q(related_to=obj_name, related_to_id__in=ids)
+    
+    if not all:
+        query = query & Q(is_valid=True)
+        
+    return Location.objects.filter(query)
 
-def get_locations_related_to_map(id_map):
+def get_locations_related_to_map(id_map, all=False):
     query =  Q()
+    
     for obj_name in id_map:
         query = query | Q(related_to=obj_name, related_to_id__in=id_map[obj_name])
+    
+    if not all:
+        query = query & Q(is_valid=True)
     
     return Location.objects.filter(query)
 
