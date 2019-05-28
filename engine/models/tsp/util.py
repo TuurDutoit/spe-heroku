@@ -3,61 +3,60 @@ from ortools.constraint_solver import pywrapcp
 from engine.data import get_data_set_for
 import math
 
+MIN = 60
+HOUR = 60 * MIN
+DAY = 24 * HOUR
+
 class DataError(Exception):
     pass
 
 class TSPContext:
     def __init__(self, data_set):
+        # Extract relevant data from data set
         self.locations = data_set.get_locations()
         self.driving_times = data_set.get_driving_times()
         self.service_times = data_set.get_service_times()
         self.penalties = data_set.get_penalties()
+        self.nodes = [0] + self.locations
+        
+        # Defaults
         self.num_vehicles = 1
         self.depot = 0
-        self.day_start = 9
-        self.day_end = 18
-        self.day_time = self.day_end - self.day_start
+        self.day_duration = (18 - 9) * HOUR
+        self.max_slack = 2 * HOUR
         
+        self._check()
+    
+    def _check(self):
+        if len(self.driving_times) != self.num_nodes:
+            raise DataError('driving_times: expected %d elements, got: %d' % (self.num_nodes, len(self.service_times)))
+        
+        for row in self.driving_times:
+            if len(row) != self.num_nodes:
+                raise DataError('driving_time, row %d: expected %d elements, got: %d' % (
+                    self.driving_times.index(row), self.num_nodes, len(row)
+                ))
+        
+        if len(self.service_times) != self.num_nodes:
+            raise DataError('service_times: expected %d elements, got: %d' % (self.num_nodes, len(self.service_times)))
+        
+        if len(self.penalties) != self.num_nodes:
+            raise DataError('penalties: expected %d elements, got: %d' % (self.num_nodes, len(self.penalties)))
+    
+    @property
+    def num_locations(self):
+        return len(self.locations)
+    
+    @property
+    def num_nodes(self):
+        return len(self.nodes)
+
 
 def create_context_for(userId):
     return create_context(get_data_set_for(userId))
 
 def create_context(data_set):
-    context = {
-        'locations': data_set.get_locations(),
-        'driving_times': data_set.get_driving_times(),
-        'service_times': data_set.get_service_times(),
-        'penalties': data_set.get_penalties(),
-        'num_vehicles': 1,
-        'depot': 0,
-        'day_start': 9,
-        'day_end': 18,
-    }
-
-    context['nodes'] = [0] + context['locations']
-    context['day_time'] = (context['day_end'] - context['day_start']) * 60 * 60
-    context['max_slack'] = context['day_time']
-    num_locations = context['num_locations'] = len(context['locations'])
-    num_nodes = context['num_nodes'] = len(context['driving_times'])
-
-    if len(context['service_times']) != num_nodes:
-        num_times = len(context['service_times'])
-        raise DataError('service_times : expected ' + str(num_nodes) + ' elements, got: ' + str(num_times))
-    
-    if len(context['penalties']) != num_locations:
-        num_penalties = len(context['penalties'])
-        raise DataError('penalties: expected ' + str(num_locations) + ' elements, got: ' + str(num_penalties))
-
-    if context['depot'] < 0 or context['depot'] >= num_nodes:
-        max_index = num_nodes - 1
-        depot = context['depot']
-        raise DataError('depot: must be a valid node index - [0, ' + str(max_index) + '], got: ' + str(depot))
-
-    if context['num_vehicles'] < 1:
-        num_vehicles = context['num_vehicles']
-        raise DataError('num_vehicles: at least 1 vehicle is required, got: ' + str(num_vehicles))
-
-    return context
+    return TSPContext(data_set)
 
 
 def create_transit_callback(routing):

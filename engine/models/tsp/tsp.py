@@ -7,7 +7,7 @@ D_TIME = 'time'
 class TravellingSalesman:
     def __init__(self, context):
         self.context = context
-        self.manager = manager = pywrapcp.RoutingIndexManager(context['num_nodes'], context['num_vehicles'], context['depot'])
+        self.manager = manager = pywrapcp.RoutingIndexManager(context.num_nodes, context.num_vehicles, context.depot)
         self.model = pywrapcp.RoutingModel(manager)
         self.params = get_search_params()
         
@@ -21,8 +21,8 @@ class TravellingSalesman:
         #  1. Working day
         self.model.AddDimension(
             transit_cb,
-            self.context['max_slack'],  # No maximum waiting time
-            self.context['day_time'], # Working 9am to 6pm
+            self.context.max_slack,  # No maximum waiting time
+            self.context.day_duration, # Working 9am to 6pm
             True, # Travel time starts at 0, of course
             D_TIME
         )
@@ -35,14 +35,16 @@ class TravellingSalesman:
         # 3. Don't visit locations related to the same record
         
         # Allow dropping nodes
-        for i in range(1, self.context['num_nodes']):
+        for i in range(self.context.num_nodes):
             index = self.manager.NodeToIndex(i)
-            penalty = self.context['penalties'][i - 1]
-            self.model.AddDisjunction([index], penalty)
+            penalty = self.context.penalties[i]
+            
+            if penalty != None:
+                self.model.AddDisjunction([index], penalty)
     
     # Convert a node number into the corresponding location's index
     def node_to_loc_idx(self, node):
-        return node - (self.context['num_nodes'] - self.context['num_locations'])
+        return node - (self.context.num_nodes - self.context.num_locations)
     
     def run(self):
         assignment = self.model.SolveWithParameters(self.params)
@@ -125,9 +127,9 @@ class Stop:
         if self.is_depot:
             return
         
-        driving_time = routing.context['driving_times'][prev_node][node]
-        service_time = routing.context['service_times'][node]
-        prev_service_time = routing.context['service_times'][prev_node]
+        driving_time = routing.context.driving_times[prev_node][node]
+        service_time = routing.context.service_times[node]
+        prev_service_time = routing.context.service_times[prev_node]
         
         d_time = routing.model.GetDimensionOrDie(D_TIME)
         time_var = d_time.CumulVar(index)
@@ -141,7 +143,7 @@ class Stop:
         # Correct those indexes here
         self.location_index = routing.node_to_loc_idx(node)
         # Retrieve Location object from data_set
-        self.location = routing.context['locations'][self.location_index]
+        self.location = routing.context.locations[self.location_index]
         
         # - earliest time you can leave from previous location
         # - latest time you should leave from previous location in order to be here on time

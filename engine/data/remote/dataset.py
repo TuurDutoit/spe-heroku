@@ -55,7 +55,7 @@ class DBDataSet(DataSet):
         return [0] + [60*60 for _ in range(self.locations.total)]
     
     def get_penalties(self):
-        return [24*60*60] * self.locations.total
+        return [None] + [24*60*60] * self.locations.total
 
     def get_locations(self):
         return self.locations.ids
@@ -67,8 +67,8 @@ def get_data_set_for(userId, date=datetime.date.today()):
         get_records_for(Contact, userId),
         get_records_for(Lead, userId),
         get_records_for(Event, userId,
-            start_date_time__lte=datetime.combine(date, EVENING, tzinfo=datetime.timezone.utc),
-            end_date_time__gte=datetime.combine(date, MORNING, tzinfo=datetime.timezone.utc)
+            start_date_time__lte=datetime.datetime.combine(date, EVENING, tzinfo=datetime.timezone.utc),
+            end_date_time__gte=datetime.datetime.combine(date, MORNING, tzinfo=datetime.timezone.utc)
         )
     )
 

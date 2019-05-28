@@ -1,26 +1,27 @@
 from django.db.models import Q
-from web.models import Account, Location, Route
+from web.models import Account, Contact, Lead, Event, Location, Route
 from .maps import distance_matrix
 from ..util import get_locations_for, get_locations_related_to_ids, get_routes_for_locations, get_record_ids
+from ...util import group_by
 import logging
 
 logger = logging.getLogger(__name__)
 
+BASE_FIELDS = ['owner_id']
 ADDRESS_SUBFIELDS = ['street', 'city', 'state', 'postal_code', 'country']
-OBJECTS = {
-    'account': {
-        'model': Account,
-        'components': ['billing', 'shipping'],
-        'base_fields': ['owner_id']
-    }
-}
+OTHER_OBJECTS = ['opportunity'] # Objects that don't have related Locations, but do trigger recommendations
 
 
 def refresh_routes(obj_name, ids, action):
     if action == 'delete':
         return action_delete(obj_name, ids)
     elif action == 'insert' or action == 'update':
-        return action_upsert(obj_name, ids)
+        if obj_name in OBJECTS:
+            return action_upsert(obj_name, ids)
+        elif obj_name in OTHER_OBJECTS:
+            return action_upsert_other(obj_name, ids)
+        else:
+            return []
     else:
         logger.warning('Unknown action: ' + action)
         return []
@@ -35,30 +36,13 @@ def action_delete(obj_name, ids):
 
     return user_ids
 
-
-def upsert_location(record, component, address, existing_locations, obj_name):
-    if (component, record.pk) in existing_locations:
-        location = existing_locations[(component, record.pk)]
-        
-        # If the address was changed, update the location and return it, so its related Routes can be updated
-        # If it wasn't changed, return None. This way, related Routes won't be updated
-        #   (except for routes related to this location and one that was updated, of course)
-        if location.address != address:
-            location.address = address
-            return location, False
-    else:
-        return Location(
-            address=address,
-            related_to=obj_name,
-            related_to_component=component,
-            related_to_id=record.pk,
-            owner_id=record.owner_id,
-            is_valid=True  # Set to True for now, we'll correct this after a sanity check and geocoding
-        ), True
+def action_upsert_other(obj_name, ids):
+    records = get_records(OBJECTS[obj_name], ids)
+    return set([record.owner_id for record in records])
 
 def action_upsert(obj_name, ids):
     existing_locations = create_location_map(get_locations_related_to_ids(obj_name, ids, all=True))
-    locations, user_ids = init_locations(obj_name, ids, upsert_location, existing_locations, obj_name)
+    locations, records, user_ids = init_locations(obj_name, ids, upsert_location, existing_locations, obj_name)
     
     invalid_locations = locations['invalid']
     valid_locations = []
@@ -152,13 +136,6 @@ def update_routes(maybe_valid_locations, other_locations, existing_routes,
             if i != j and d != None and (i < num_updated_locations or j < num_updated_locations):
                 start = all_locations[i]
                 end = all_locations[j]
-                
-                # Don't enable this check yet, as the TSP model doesn't support it yet
-                """
-                # Also don't create routes from/to the same record (but different component)
-                if start.related_to_id == end.related_to_id:
-                    continue
-                """
 
                 # If a route already exists, update it (if needed)
                 if start.pk and end.pk and (start.pk, end.pk) in existing_routes:
@@ -174,7 +151,6 @@ def update_routes(maybe_valid_locations, other_locations, existing_routes,
                         end=end,
                         distance=d
                     ))
-
 
 # Creates or updates Locations for the affected records
 # These are sorted two times (so every location is included in 2 lists):
@@ -208,8 +184,7 @@ def init_locations(obj_name, ids, create_or_update_location, *cb_extras):
 
         for component in obj['components']:
             # Format the address and get a Location object from the callback
-            address = get_address(record, component)
-            res = create_or_update_location(record, component, address, *cb_extras)
+            res = create_or_update_location(record, component, *cb_extras)
             
             # Location == None means that it wasn't changed,
             # so we don't include it in the locations to update/create routes for
@@ -235,7 +210,7 @@ def init_locations(obj_name, ids, create_or_update_location, *cb_extras):
         'to_create': locations_to_create,
         'to_update': locations_to_update
     }
-    return locations, user_ids
+    return locations, records, user_ids
 
 
 
@@ -267,27 +242,84 @@ def get_route_map(locations):
 def delete_routes_for(locations):
     get_routes_for_locations(locations).delete()
 
-def get_address(record, component):
+def get_address(record, component, obj):
     parts = []
 
-    for field in ADDRESS_SUBFIELDS:
-        part = getattr(record, component + '_' + field)
+    for field in obj['components'][component]:
+        part = getattr(record, field)
         if part and part.strip():
             parts.append(part)
 
     return ', '.join(parts)
 
-def get_address_fields(components):
-    fields = []
 
-    for name in components:
-        for subfield in ADDRESS_SUBFIELDS:
-            fields.append(name + '_' + subfield)
+def get_address_fields(name):
+    fields = []
+    prefix = name + '_' if name else ''
+
+    for subfield in ADDRESS_SUBFIELDS:
+        fields.append(prefix + subfield)
 
     return fields
+
+def get_address_map(*components):
+    m = {}
+    
+    for component in components:
+        m[component] = get_address_fields(component)
+    
+    return m
+
+
+def upsert_location(record, component, existing_locations, obj_name):
+    address = get_address(record, component, OBJECTS[obj_name])
+    
+    if (component, record.pk) in existing_locations:
+        location = existing_locations[(component, record.pk)]
+
+        # If the address was changed, update the location and return it, so its related Routes can be updated
+        # If it wasn't changed, return None. This way, related Routes won't be updated
+        #   (except for routes related to this location and one that was updated, of course)
+        if location.address != address:
+            location.address = address
+            return location, False
+    else:
+        return Location(
+            address=address,
+            related_to=obj_name,
+            related_to_component=component,
+            related_to_id=record.pk,
+            owner_id=record.owner_id,
+            is_valid=True  # Set to True for now, we'll correct this after a sanity check and geocoding
+        ), True
+        
+
+def basic_model(Model, address_fields):
+    return {
+        'model': Model,
+        'components': get_address_map(*address_fields),
+    }
+
+OBJECTS = {
+    'account': basic_model(Account, ['billing', 'shipping']),
+    'contact': basic_model(Contact, ['mailing', 'other']),
+    'lead': basic_model(Lead, ['']),
+    'event': {
+        'model': Event,
+        'components': {
+            '': ['location']
+        },
+        'extra_fields': ['what_id', 'who_id', 'account_id'],
+    }
+}
 
 
 for obj_name in OBJECTS:
     obj = OBJECTS[obj_name]
-    obj['address_fields'] = get_address_fields(obj['components'])
-    obj['relevant_fields'] = obj['base_fields'] + obj['address_fields']
+    address_fields = []
+    
+    for component in obj['components']:
+        address_fields += obj['components'][component]
+        
+    extra_fields = obj.get('base_fields', [])
+    obj['relevant_fields'] = BASE_FIELDS + extra_fields + address_fields
