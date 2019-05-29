@@ -57,6 +57,12 @@ class TSPContext:
             
         return self.data_set.get_penalty(self.get_stop_for_node(node_index))
     
+    def get_time_window(self, node_index):
+        if not self.is_stop(node_index):
+            return None
+        
+        return self.data_set.get_time_window(self.get_stop_for_node(node_index))
+    
     def get_driving_time(self, from_node_index, to_node_index):
         if from_node_index == 0 or to_node_index == 0:
             return 0

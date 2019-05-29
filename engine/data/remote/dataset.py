@@ -1,25 +1,27 @@
 from django.db.models import Q
-from web.models import Account, Contact, Lead, Opportunity, Location, Route, Event
+from web.models import User, Account, Contact, Lead, Opportunity, Location, Route, Event
 from .conf import OBJECTS
 from .util import get_locations_related_to_map, get_routes_for_location_ids
 from ..util import init_matrix, map_by, get_deep, find_deep
 from ..common import RecordSet, DataSet
+from pytz import timezone
 import random
 import datetime as dt
 
 SERVICES = {
     'meeting': {
-        'service_time': 30 * 60,
+        'service_time': 2 * 60 * 60,
     }
 }
 BASIC_OBJECTS = ['account', 'contact', 'lead', 'opportunity']
 PENALTY = 24*60*60
-MORNING = dt.time(9, 0, 0, 0, tzinfo=dt.timezone.utc)
-EVENING = dt.time(18, 0, 0, 0, tzinfo=dt.timezone.utc)
+MORNING = dt.time(9, 0, 0, 0)
+EVENING = dt.time(18, 0, 0, 0)
 DEFAULT_DRIVING_TIME = 30 * 60
 
 class DBDataSet(DataSet):
-    def __init__(self, accounts, contacts, leads, opportunities, events, date):
+    def __init__(self, user, accounts, contacts, leads, opportunities, events, date):
+        self.user = user
         self.account = RecordSet(accounts)
         self.contact = RecordSet(contacts)
         self.lead = RecordSet(leads)
@@ -99,6 +101,8 @@ class DBDataSet(DataSet):
                         ))
     
     def _create_existing_stops(self, date):
+        tz = self.timezone = timezone(self.user.time_zone_sid_key)
+        
         for event in self.event.all:
             # Get location of the event
             paths = [('event', event.pk, '')]
@@ -119,8 +123,8 @@ class DBDataSet(DataSet):
             location = find_deep(self.location_map, paths, default=None)
             
             # Get the service_time for the location
-            start = event.start_date_time
-            end = event.end_date_time
+            start = event.start_date_time.astimezone(tz)
+            end = event.end_date_time.astimezone(tz)
 
             if start.date() != date or start.time() < MORNING:
                 start = dt.datetime.combine(date, MORNING)
@@ -129,7 +133,11 @@ class DBDataSet(DataSet):
                 end = dt.datetime.combine(date, EVENING)
 
             service_time = (end - start).total_seconds()
-            time_window = ((start - MORNING).total_seconds(), (end - MORNING).total_seconds())
+            time_offset = tz.localize(dt.datetime.combine(dt.date.today(), MORNING))
+            print('START / END / OFFSET ' + '*'*50)
+            print(start, end, time_offset)
+            start_secs = ((start - time_offset).total_seconds())
+            time_window = (start_secs, start_secs)
             
             self.stops.append(BasicStop(
                 event, event.event_subtype, service_time, None, location, time_window
@@ -205,6 +213,7 @@ def get_evening(date):
 
 def get_data_set_for(userId, date=dt.date.today()):
     return DBDataSet(
+        User.objects.get(pk=userId),
         get_records_for(Account, userId),
         get_records_for(Contact, userId),
         get_records_for(Lead, userId),

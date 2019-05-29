@@ -30,7 +30,12 @@ class TravellingSalesman:
         
         # TODO
         #  2. Existing schedule (based on time windows)
-        
+        for i in range(self.context.num_nodes):
+            time_window = self.context.get_time_window(i)
+            
+            if time_window:
+                index = self.manager.NodeToIndex(i)
+                d_time.CumulVar(index).SetRange(int(time_window[0]), int(time_window[1]))
         # TODO
         # 3. Don't visit locations related to the same record
         
