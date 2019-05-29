@@ -19,34 +19,103 @@ def select(items, key='pk'):
     
     return l
 
-def group_by_cb(item, key):
-    return [getattr(item, key)]
+def get_groups(item, keys):
+    groups = [[]]
 
-def group_by(items, keys):
-    if len(keys) < 1:
-        return items
-    
-    key = keys[0]
-    get_group_names = key if callable(key) else group_by_cb
+    for key in keys:
+        if callable(key):
+            subgroups = key(item)
+            new_groups = []
+
+            for group in groups:
+                for subgroup in subgroups:
+                    new_groups.append(group + [subgroup])
+
+            groups = new_groups
+        else:
+            val = getattr(item, key)
+            for group in groups:
+                group.append(val)
+
+    return map(tuple, groups)
+
+
+def group_by_flat(items, keys):
     m = {}
-        
+
     for item in items:
-        group_names = get_group_names(item, key)
-        
-        for group_name in group_names:
-            if not group_name in m:
-                m[group_name] = []
-                
-            m[group_name].append(item)
+        for group in get_groups(item, keys):
+            if not group in m:
+                m[group] = []
+
+            m[group].append(m)
+
+    return m
+
+
+def map_by_flat(items, keys):
+    m = {}
+
+    for item in items:
+        for group in get_groups(item, keys):
+            m[group] = item
+
+    return m
+
+def group_by_base(items, keys, finish):
+    m = {}
     
-    keys = keys[1:]
-    
-    if len(keys) >= 1:
-        for group_name in m:
-            m[group_name] = group_by(m[group_name], keys)
+    for item in items:
+        for group in get_groups(item, keys):
+            nested_m = m
+            
+            for step in group[:-1]:
+                if not step in nested_m:
+                    nested_m[step] = {}
+                nested_m = nested_m[step]
+            
+            finish(nested_m, group[-1], item)
     
     return m
+
+def group_by_finish(m, key, item):
+    if not m[key]:
+        m[key] = []
+    m[key].append(item)
+
+def map_by_finish(m, key, item):
+    m[key] = item
+
+def group_by(items, keys):
+    return group_by_base(items, keys, group_by_finish)
+
+def map_by(items, keys):
+    return group_by_base(items, keys, map_by_finish)
+
+def get_deep(m, path, **kwargs):
+    for step in path:
+        if step in m:
+            m = m[step]
+        elif 'default' in kwargs:
+            return kwargs['default']
+        else:
+            raise KeyError(str(path))
+    
+    return m
+
+def find_deep(m, paths, **kwargs):
+    NOT_FOUND = object()
+    
+    for path in paths:
+        item = get_deep(m, path, default=NOT_FOUND)
         
+        if item != NOT_FOUND:
+            return item
+    
+    if 'default' in kwargs:
+        return kwargs['default']
+    
+    raise KeyError(str(paths))
 
 def matrix_str(matrix, hheader=None, vheader=None, header=None):
     if header:

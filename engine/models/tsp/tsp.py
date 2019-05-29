@@ -36,15 +36,11 @@ class TravellingSalesman:
         
         # Allow dropping nodes
         for i in range(self.context.num_nodes):
-            index = self.manager.NodeToIndex(i)
-            penalty = self.context.penalties[i]
+            penalty = self.context.get_penalty(i)
             
             if penalty != None:
+                index = self.manager.NodeToIndex(i)
                 self.model.AddDisjunction([index], penalty)
-    
-    # Convert a node number into the corresponding location's index
-    def node_to_loc_idx(self, node):
-        return node - (self.context.num_nodes - self.context.num_locations)
     
     def run(self):
         assignment = self.model.SolveWithParameters(self.params)
@@ -65,21 +61,19 @@ class Solution:
             self.solved = False
             return
         
-        d_time = routing.model.GetDimensionOrDie(D_TIME)
-        time_var = d_time.CumulVar(routing.model.End(0))
         index = routing.model.Start(0)
-        self.time = assignment.Max(time_var)
         self.solved = True
-        self.stops = []
+        self.legs = []
         
         while not routing.model.IsEnd(index):
             # This is the index of the *previous* node, as
-            stop = Stop(assignment, routing, index)
-            index = stop.index
-            if not stop.is_depot:
-                self.stops.append(stop)
-                
-        self.locations = [stop.location for stop in self.stops]
+            leg = Leg(assignment, routing, index)
+            index = leg.index
+            if not leg.is_depot:
+                self.legs.append(leg)
+        
+        self.time = self.legs[-1].finish[0]
+        self.stops = [leg.stop for leg in self.legs]
     
     @property
     def __dict__(self):
@@ -89,8 +83,8 @@ class Solution:
             return {
                 'solved': True,
                 'time': self.time,
-                'locations': list(self.locations),
-                'stops': [stop.__dict__ for stop in self.stops]
+                'stops': list(self.stops),
+                'legs': [leg.__dict__ for leg in self.legs]
             }
     
     def __repr__(self):
@@ -100,21 +94,21 @@ class Solution:
             data = {
                 'solved': True,
                 'time': self.time,
-                'locations': list(self.locations),
-                'stops': '[' + ', '.join([stop.__repr__() for stop in self.stops]) + ']'
+                'stops': list(self.stops),
+                'legs': '[' + ', '.join([leg.__repr__() for leg in self.legs]) + ']'
             }
         
         return 'Solution(' + data.__repr__() + ')'
     
     def __str__(self):
         return '\n'.join((
-            '*' * 80,
-            '\n'.join(map(str, self.stops)) if self.solved else 'NO SOLUTION',
+            '*' * 30 + ' Solution(' + h(self.time) + ') ' + '*' * 30,
+            '\n'.join(map(str, self.legs)) if self.solved else 'NO SOLUTION',
             '*' * 80
         ))
 
 
-class Stop:
+class Leg:
     def __init__(self, assignment, routing, prev_index):
         index = assignment.Value(routing.model.NextVar(prev_index))
         node = routing.manager.IndexToNode(index)
@@ -127,9 +121,9 @@ class Stop:
         if self.is_depot:
             return
         
-        driving_time = routing.context.driving_times[prev_node][node]
-        service_time = routing.context.service_times[node]
-        prev_service_time = routing.context.service_times[prev_node]
+        driving_time = routing.context.get_driving_time(prev_node, node)
+        service_time = routing.context.get_service_time(node)
+        prev_service_time = routing.context.get_service_time(prev_node)
         
         d_time = routing.model.GetDimensionOrDie(D_TIME)
         time_var = d_time.CumulVar(index)
@@ -141,9 +135,9 @@ class Stop:
     
         # Locations in driving_times matrix are preceded by the depot
         # Correct those indexes here
-        self.location_index = routing.node_to_loc_idx(node)
+        self.stop_index = routing.context.node_to_stop_index(node)
         # Retrieve Location object from data_set
-        self.location = routing.context.locations[self.location_index]
+        self.stop = routing.context.get_stop_for_node(node)
         
         # - earliest time you can leave from previous location
         # - latest time you should leave from previous location in order to be here on time
@@ -170,7 +164,7 @@ class Stop:
         else:
             data = {
                 attr: getattr(self, attr)
-                for attr in ['index', 'node', 'location_index', 'location', 'departure', 'arrival',
+                for attr in ['index', 'node', 'stop_index', 'stop', 'departure', 'arrival',
                     'finish', 'time_driving', 'time_serving', 'wait', 'slack']
             }
         
@@ -182,10 +176,10 @@ class Stop:
             timestamp(*self.departure),
             pad + 'Driving({}, {}, {})'.format(
                 h(self.time_driving),
-                h(self.arrival[0] - self.departure[0] - self.time_driving),
-                h(self.arrival[1] - self.departure[0] - self.time_driving)
+                h(self.wait),
+                h(self.slack)
             ),
             timestamp(*self.arrival),
-            pad + 'Service({}, {})'.format(h(self.time_serving), self.location),
+            pad + 'Service({}, {})'.format(h(self.time_serving), self.stop),
             timestamp(*self.finish)
         ))

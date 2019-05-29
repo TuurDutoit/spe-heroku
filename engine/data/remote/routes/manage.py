@@ -1,15 +1,15 @@
 from django.db.models import Q
 from web.models import Account, Contact, Lead, Event, Location, Route
 from .maps import distance_matrix
+from ..conf import OBJECTS
 from ..util import get_locations_for, get_locations_related_to_ids, get_routes_for_locations, get_record_ids
 from ...util import group_by
 import logging
 
 logger = logging.getLogger(__name__)
 
-BASE_FIELDS = ['owner_id']
-ADDRESS_SUBFIELDS = ['street', 'city', 'state', 'postal_code', 'country']
-OTHER_OBJECTS = ['opportunity'] # Objects that don't have related Locations, but do trigger recommendations
+# Objects that don't have related Locations, but do trigger recommendations
+OTHER_OBJECTS = ['opportunity']
 
 
 def refresh_routes(obj_name, ids, action):
@@ -253,24 +253,6 @@ def get_address(record, component, obj):
     return ', '.join(parts)
 
 
-def get_address_fields(name):
-    fields = []
-    prefix = name + '_' if name else ''
-
-    for subfield in ADDRESS_SUBFIELDS:
-        fields.append(prefix + subfield)
-
-    return fields
-
-def get_address_map(*components):
-    m = {}
-    
-    for component in components:
-        m[component] = get_address_fields(component)
-    
-    return m
-
-
 def upsert_location(record, component, existing_locations, obj_name):
     address = get_address(record, component, OBJECTS[obj_name])
     
@@ -292,34 +274,3 @@ def upsert_location(record, component, existing_locations, obj_name):
             owner_id=record.owner_id,
             is_valid=True  # Set to True for now, we'll correct this after a sanity check and geocoding
         ), True
-        
-
-def basic_model(Model, address_fields):
-    return {
-        'model': Model,
-        'components': get_address_map(*address_fields),
-    }
-
-OBJECTS = {
-    'account': basic_model(Account, ['billing', 'shipping']),
-    'contact': basic_model(Contact, ['mailing', 'other']),
-    'lead': basic_model(Lead, ['']),
-    'event': {
-        'model': Event,
-        'components': {
-            '': ['location']
-        },
-        'extra_fields': ['what_id', 'who_id', 'account_id'],
-    }
-}
-
-
-for obj_name in OBJECTS:
-    obj = OBJECTS[obj_name]
-    address_fields = []
-    
-    for component in obj['components']:
-        address_fields += obj['components'][component]
-        
-    extra_fields = obj.get('base_fields', [])
-    obj['relevant_fields'] = BASE_FIELDS + extra_fields + address_fields
