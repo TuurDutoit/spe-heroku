@@ -23,21 +23,23 @@ def get_recommendations_for(userId):
     solution = tsp.run()
     recs = []
     
-    header = context['nodes']
-    logger.debug('\n'+matrix_str(data.get_driving_times(), header=header))
     logger.debug(solution)
     
     if solution.solved:
-        for location in solution.locations:
-            record = data.get_record_for_location_id(location)
-            
-            if isinstance(record, Account):
-                recs.append(Recommendation(
+        for leg in solution.legs:
+            if leg.stop.obj_name == 'account':
+                record = leg.stop.record
+                rec = Recommendation(
                     score = record.score,
                     reason1 = 'This account looks promising',
                     account_id = record.pk,
                     owner_id = userId
-                ))
+                )
+                
+                if leg.stop.location:
+                    rec.reason2 = leg.stop.location.address
+                
+                recs.append(rec)
     else:
         logger.warning('Not creating recommendations: solution not solved, or using a mock data set')
     

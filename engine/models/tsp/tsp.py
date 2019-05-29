@@ -88,7 +88,7 @@ class Solution:
             return {
                 'solved': True,
                 'time': self.time,
-                'stops': list(self.stops),
+                'stops': [stop.__dict__ for stop in self.stops],
                 'legs': [leg.__dict__ for leg in self.legs]
             }
     
@@ -163,17 +163,22 @@ class Leg:
         # e.g. previous meeting runs out, traffic jams, etc.
         self.slack = arrival[1] - prev_finish - driving_time
     
-    def __repr__(self):
+    @property
+    def __dict__(self):
         if self.is_depot:
-            data = { 'is_depot': True }
+            return { 'is_depot': True }
         else:
-            data = {
-                attr: getattr(self, attr)
-                for attr in ['index', 'node', 'stop_index', 'stop', 'departure', 'arrival',
-                    'finish', 'time_driving', 'time_serving', 'wait', 'slack']
+            return {
+                **{
+                    attr: getattr(self, attr)
+                    for attr in ['index', 'node', 'stop_index', 'departure', 'arrival',
+                        'finish', 'time_driving', 'time_serving', 'wait', 'slack']
+                },
+                'stop': self.stop.__dict__
             }
-        
-        return 'Stop(' + data.__repr__() + ')'
+    
+    def __repr__(self):
+        return 'Stop(' + self.__dict__.__repr__() + ')'
     
     def __str__(self):
         pad = ' ' * 18

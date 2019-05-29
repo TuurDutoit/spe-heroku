@@ -8,11 +8,9 @@ from pytz import timezone
 import random
 import datetime as dt
 
-SERVICES = {
-    'meeting': {
-        'service_time': 2 * 60 * 60,
-    }
-}
+SERVICES = [
+    { 'type': 'meeting', 'time': 2 * 60 * 60 }
+]
 BASIC_OBJECTS = ['account', 'contact', 'lead', 'opportunity']
 PENALTY = 24*60*60
 MORNING = dt.time(9, 0, 0, 0)
@@ -90,14 +88,13 @@ class DBDataSet(DataSet):
                     
                     location = get_deep(self.location_map, path, default=None)
                     
-                    for service_type in SERVICES:
-                        service = SERVICES[service_type]
+                    for service in SERVICES:
                         self.stops.append(BasicStop(
-                            record=record,
-                            service_type=service_type,
-                            service_time=service['service_time'],
-                            penalty=record.score * PENALTY / 100,
-                            location=location
+                            obj_name = obj_name,
+                            record = record,
+                            service = service,
+                            location = location,
+                            penalty = record.score * PENALTY / 100,
                         ))
     
     def _create_existing_stops(self, date):
@@ -140,7 +137,13 @@ class DBDataSet(DataSet):
             time_window = (start_secs, start_secs)
             
             self.stops.append(BasicStop(
-                event, event.event_subtype, service_time, None, location, time_window
+                obj_name = 'event',
+                record = event,
+                service = { 'type': event.event_subtype, 'time': service_time },
+                location = location,
+                penalty = None,
+                time_window = time_window,
+                is_existing = True
             ))
     
     def get_stops(self):
@@ -169,13 +172,15 @@ class DBDataSet(DataSet):
             
 
 class BasicStop:
-    def __init__(self, record, service_type, service_time=0, penalty=None, location=None, time_window=None):
-        self.record = record
-        self.service_type = service_type
-        self.service_time = service_time
-        self.penalty = penalty
-        self.location = location
-        self.time_window = time_window
+    def __init__(self, **kwargs):
+        self.obj_name = kwargs.get('obj_name')
+        self.record = kwargs.get('record')
+        self.service_type = kwargs.get('service')['type']
+        self.service_time = kwargs.get('service')['time']
+        self.location = kwargs.get('location')
+        self.penalty = kwargs.get('penalty', None)
+        self.time_window = kwargs.get('time_window', None)
+        self.is_existing = kwargs.get('is_existing', False)
         
     def get_record(self):
         return self.record
@@ -198,10 +203,22 @@ class BasicStop:
     def get_time_window(self):
         return self.time_window
     
+    @property
+    def __dict__(self):
+        return {
+            **{
+                key: getattr(self, key)
+                for key in ['obj_name', 'service_type', 'service_time', 'penalty', 'time_window', 'is_existing']
+            },
+            'record_id': self.record.pk,
+            'location_id': self.location.pk if self.location else None,
+            'location_address': self.location.address if self.location else None
+        }
+    
     def __repr__(self):
         return str({
             key: getattr(self, key)
-            for key in ['record', 'service_type', 'service_time', 'penalty', 'location', 'time_window']
+            for key in ['obj_name', 'record', 'service_type', 'service_time', 'penalty', 'location', 'time_window', 'is_existing']
         })
 
 
