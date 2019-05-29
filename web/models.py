@@ -390,7 +390,7 @@ class Account(sf.Model):
     
     @property
     def score(self):
-        return min(100, max(0, self.annual_revenue / 25_000_000)) if self.annual_revenue else 0
+        return min(100, max(0, int(self.annual_revenue) / 250_000)) if self.annual_revenue else 0
 
 
 
@@ -584,6 +584,10 @@ class Opportunity(sf.Model):
         verbose_name = 'Opportunity'
         verbose_name_plural = 'Opportunities'
         # keyPrefix = '006'
+    
+    @property
+    def score(self):
+        return min(100, max(0, int(self.total_opportunity_quantity) / 25_000)) if self.total_opportunity_quantity else 0
 
 
 

@@ -96,7 +96,7 @@ class DBDataSet(DataSet):
                             record=record,
                             service_type=service_type,
                             service_time=service['service_time'],
-                            penalty=PENALTY,
+                            penalty=record.score * PENALTY / 100,
                             location=location
                         ))
     

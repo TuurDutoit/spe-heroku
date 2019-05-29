@@ -45,7 +45,7 @@ class TravellingSalesman:
             
             if penalty != None:
                 index = self.manager.NodeToIndex(i)
-                self.model.AddDisjunction([index], penalty)
+                self.model.AddDisjunction([index], int(penalty))
     
     def run(self):
         assignment = self.model.SolveWithParameters(self.params)

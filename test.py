@@ -29,3 +29,11 @@ context = create_context_for('0051i000001NHLCAA4')
 tsp = TravellingSalesman(context)
 solution = tsp.run()
 print(solution)
+
+"""
+from web.models import Account, Contact
+rec = Account.objects.get(pk='0011i00000BnM3hAAF')
+print(rec.annual_revenue)
+print(rec.score)
+print(rec.score * (24*60*60) / 100)
+"""
