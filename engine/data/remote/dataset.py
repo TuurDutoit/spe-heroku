@@ -31,7 +31,6 @@ class DBDataSet(DataSet):
         self._fetch_routes()
         self._create_basic_stops()
         self._create_existing_stops(date)
-        print(self.stops)
     
     def _fetch_locations(self):
         # IDs of the records we have to fetch locations for
@@ -60,9 +59,6 @@ class DBDataSet(DataSet):
         locations = get_locations_related_to_map(id_map)
         self.location = RecordSet(locations)
         self.location_map = map_by(self.location.all, ('related_to', 'related_to_id', 'related_to_component'))
-        
-        print(locations)
-        print(self.location_map)
     
     def _fetch_routes(self):
         routes = Route.objects.filter(
@@ -131,8 +127,6 @@ class DBDataSet(DataSet):
 
             service_time = (end - start).total_seconds()
             time_offset = tz.localize(dt.datetime.combine(dt.date.today(), MORNING))
-            print('START / END / OFFSET ' + '*'*50)
-            print(start, end, time_offset)
             start_secs = ((start - time_offset).total_seconds())
             time_window = (start_secs, start_secs)
             

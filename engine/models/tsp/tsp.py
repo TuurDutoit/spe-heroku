@@ -1,4 +1,3 @@
-from __future__ import print_function
 from ortools.constraint_solver import pywrapcp
 from .util import create_context, create_context_for, get_search_params, set_transit_callback, timestamp, h
 
