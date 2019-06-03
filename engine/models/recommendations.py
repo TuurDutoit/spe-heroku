@@ -36,9 +36,6 @@ def get_recommendations_for(userId):
                     owner_id = userId
                 )
                 
-                if leg.stop.location:
-                    rec.reason2 = leg.stop.location.address
-                
                 recs.append(rec)
     else:
         logger.warning('Not creating recommendations: solution not solved, or using a mock data set')
