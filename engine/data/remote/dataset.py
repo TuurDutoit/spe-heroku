@@ -1,12 +1,15 @@
 from django.db.models import Q
 from web.models import User, Account, Contact, Lead, Opportunity, Location, Route, Event
 from .conf import OBJECTS
-from .util import get_locations_related_to_map, get_routes_for_location_ids
+from .util import get_locations_related_to_map, get_routes_for_location_ids, get_timezone_for
 from ..util import init_matrix, map_by, get_deep, find_deep
 from ..common import RecordSet, DataSet
 from pytz import timezone
 import random
 import datetime as dt
+import logging
+
+logger = logging.getLogger(__name__)
 
 SERVICES = [
     { 'type': 'meeting', 'time': 2 * 60 * 60 }
@@ -31,6 +34,11 @@ class DBDataSet(DataSet):
         self._fetch_routes()
         self._create_basic_stops()
         self._create_existing_stops(date)
+        
+        logger.debug('All stops: %s' % [
+            '%s: %s (%s)' % (stop.obj_name, stop.record.pk, stop.location.related_to_component if stop.location else None)
+            for stop in self.stops
+        ])
     
     def _fetch_locations(self):
         # IDs of the records we have to fetch locations for
@@ -94,7 +102,7 @@ class DBDataSet(DataSet):
                         ))
     
     def _create_existing_stops(self, date):
-        tz = self.timezone = timezone(self.user.time_zone_sid_key)
+        tz = self.timezone = get_timezone_for(self.user)
         
         for event in self.event.all:
             # Get location of the event
@@ -215,23 +223,31 @@ class BasicStop:
             for key in ['obj_name', 'record', 'service_type', 'service_time', 'penalty', 'location', 'time_window', 'is_existing']
         })
 
+# Converts a naive datetime object that is supposed to be in timezone <tz> to a UTC datetime 
+def to_utc(date, tz):
+    return tz.localize(date).astimezone(dt.timezone.utc)
 
 def get_morning(date):
-    return dt.datetime.combine(date, MORNING, tzinfo=dt.timezone.utc)
+    return dt.datetime.combine(date, MORNING)
     
 def get_evening(date):
-    return dt.datetime.combine(date, EVENING, tzinfo=dt.timezone.utc)
+    return dt.datetime.combine(date, EVENING)
 
 def get_data_set_for(userId, date=dt.date.today()):
+    user = User.objects.get(pk=userId)
+    tz = get_timezone_for(user)
+    start = to_utc(get_evening(date), tz)
+    end = to_utc(get_morning(date), tz)
+    
     return DBDataSet(
-        User.objects.get(pk=userId),
+        user,
         get_records_for(Account, userId),
         get_records_for(Contact, userId),
         get_records_for(Lead, userId),
         get_records_for(Opportunity, userId),
         get_records_for(Event, userId,
-            start_date_time__lte=get_evening(date),
-            end_date_time__gte=get_morning(date),
+            start_date_time__lte=start,
+            end_date_time__gte=end,
             is_all_day_event=False
         ),
         date

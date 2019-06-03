@@ -1,5 +1,6 @@
 from django.db.models import Q
 from web.models import Location, Route
+from pytz import timezone
 
 def get_record_ids(records):
     return [record.pk for record in records if record.pk != None]
@@ -34,3 +35,6 @@ def get_routes_for_locations(locations):
 
 def get_routes_for_location_ids(ids):
     return Route.objects.filter(Q(start_id__in=ids) | Q(end_id__in=ids))
+
+def get_timezone_for(user):
+    return timezone(user.time_zone_sid_key)
