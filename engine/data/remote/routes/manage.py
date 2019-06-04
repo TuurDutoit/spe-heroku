@@ -66,7 +66,7 @@ def action_upsert(obj_name, ids):
         loc.is_valid = False
     
     for loc in valid_locations:
-        is_valid = True
+        loc.is_valid = True
     
     # Save all Locations that have changed
     for loc in locations['to_update']:
