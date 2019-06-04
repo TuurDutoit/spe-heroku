@@ -143,12 +143,13 @@ class DBDataSet(DataSet):
             time_offset = tz.localize(dt.datetime.combine(dt.date.today(), MORNING))
             start_secs = ((start - time_offset).total_seconds())
             
-            events.append(ExistingStop(
+            events.append(BasicStop(
                 obj_name = 'event',
                 record = event,
                 service = { 'type': event.event_subtype, 'time': service_time },
                 location = location,
-                arrival = start_secs
+                time_window = (start_secs, start_secs),
+                existing = True
             ))
         
         logger.debug('%s', events[0].__dict__)
@@ -182,20 +183,22 @@ class DBDataSet(DataSet):
         return self.stops
         
     def get_driving_time(self, from_stop, to_stop):
-        # Driving time between existing events is always set to 0
-        # This to make sure that the model is feasible
-        # and it doesn't matter anyway, we're not moving them.
-        if from_stop.is_existing() and to_stop.is_existing():
-            return 0
-            
         start_loc = from_stop.get_location()
         end_loc = to_stop.get_location()
         driving_time = DEFAULT_DRIVING_TIME
         
+        # Try to get distance from a Route object
+        # Otherwise, just keep the default
         if start_loc and end_loc:
             route = get_deep(self.route_map, (start_loc.pk, end_loc.pk), default=None)
             if route:
                 driving_time = route.distance
+        
+        # Make sure the model stays feasible,
+        # even with existing events that might not be feasibly scheduled
+        if from_stop.is_existing() and to_stop.is_existing():
+            max_time_between = to_stop.time_window[0] - (from_stop.time_window[0] + from_stop.service_time)
+            driving_time = min(driving_time, max_time_between)
         
         return driving_time
     
@@ -265,18 +268,6 @@ class BasicStop:
             for key in ['obj_name', 'record', 'service_type', 'service_time', 'penalty', 'location', 'time_window', 'existing']
         })
 
-class ExistingStop(BasicStop):
-    def __init__(self, **kwargs):
-        self.arrival = kwargs.get('arrival', None)
-        
-        if self.arrival != None and 'time_window' not in kwargs:
-            kwargs['time_window'] = (self.arrival, self.arrival)
-        
-        kwargs['existing'] = True
-        kwargs['penalty'] = True
-        
-        super().__init__(**kwargs)
-        
 
 # Converts a naive datetime object that is supposed to be in timezone <tz> to a UTC datetime 
 def to_utc(date, tz):
