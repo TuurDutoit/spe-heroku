@@ -51,6 +51,12 @@ class TSPContext:
     def get_stop_for_node(self, node_index):
         return self.get_stop(self.node_to_stop_index(node_index))
     
+    def is_existing(self, node_index):
+        if not self.is_stop(node_index):
+            return False
+        
+        return self.data_set.is_existing(self.get_stop_for_node(node_index))
+    
     def get_penalty(self, node_index):
         if not self.is_stop(node_index):
             return None

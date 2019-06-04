@@ -15,7 +15,7 @@ SERVICES = [
     { 'type': 'meeting', 'time': 1 * 60 * 60 }
 ]
 BASIC_OBJECTS = ['account', 'contact', 'lead', 'opportunity']
-PENALTY = 60
+PENALTY = 24*60*60
 MORNING = dt.time(9, 0, 0, 0)
 EVENING = dt.time(18, 0, 0, 0)
 DEFAULT_DRIVING_TIME = 30 * 60
@@ -149,7 +149,7 @@ class DBDataSet(DataSet):
                 location = location,
                 penalty = None,
                 time_window = time_window,
-                is_existing = True
+                existing = True
             ))
     
     def get_stops(self):
@@ -175,6 +175,9 @@ class DBDataSet(DataSet):
     
     def get_time_window(self, stop):
         return stop.get_time_window()
+    
+    def is_existing(self, stop):
+        return stop.is_existing()
             
 
 class BasicStop:
@@ -186,7 +189,7 @@ class BasicStop:
         self.location = kwargs.get('location')
         self.penalty = kwargs.get('penalty', None)
         self.time_window = kwargs.get('time_window', None)
-        self.is_existing = kwargs.get('is_existing', False)
+        self.existing = kwargs.get('existing', False)
         
     def get_record(self):
         return self.record
@@ -209,12 +212,15 @@ class BasicStop:
     def get_time_window(self):
         return self.time_window
     
+    def is_existing(self):
+        return self.existing
+    
     @property
     def __dict__(self):
         return {
             **{
                 key: getattr(self, key)
-                for key in ['obj_name', 'service_type', 'service_time', 'penalty', 'time_window', 'is_existing']
+                for key in ['obj_name', 'service_type', 'service_time', 'penalty', 'time_window', 'existing']
             },
             'record_id': self.record.pk,
             'location_id': self.location.pk if self.location else None,
@@ -224,7 +230,7 @@ class BasicStop:
     def __repr__(self):
         return str({
             key: getattr(self, key)
-            for key in ['obj_name', 'record', 'service_type', 'service_time', 'penalty', 'location', 'time_window', 'is_existing']
+            for key in ['obj_name', 'record', 'service_type', 'service_time', 'penalty', 'location', 'time_window', 'existing']
         })
 
 # Converts a naive datetime object that is supposed to be in timezone <tz> to a UTC datetime 

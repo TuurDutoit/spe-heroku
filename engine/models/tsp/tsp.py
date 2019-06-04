@@ -1,5 +1,6 @@
 from ortools.constraint_solver import pywrapcp
 from .util import create_context, create_context_for, get_search_params, set_transit_callback, timestamp, h
+import time
 
 D_TIME = 'time'
 
@@ -16,8 +17,8 @@ class TravellingSalesman:
         # Set global cost function as cumulative time
         transit_cb = set_transit_callback(self)
         
+        # 1. Working day and breaks
         # Add time constraint
-        #  1. Working day
         self.model.AddDimension(
             transit_cb,
             self.context.max_slack,  # No maximum waiting time
@@ -38,17 +39,38 @@ class TravellingSalesman:
         # TODO
         # 3. Don't visit locations related to the same record
         
-        # Allow dropping nodes
+        # 4. Allow dropping nodes
         for i in range(self.context.num_nodes):
             penalty = self.context.get_penalty(i)
             
             if penalty != None:
                 index = self.manager.NodeToIndex(i)
                 self.model.AddDisjunction([index], int(penalty))
+        
+        # 5. Populate initial solution from existing schedule
+        # If we don't do this, the model sometimes struggles to find a solution
+        # with existing events (probably related to the small time windows)
+        initial_route = []
+        for i in range(self.context.num_nodes):
+            is_existing = self.context.is_existing(i)
+            
+            if is_existing:
+                initial_route.append(i)
+        
+        if len(initial_route) >= 1:
+            self.initial_solution = self.model.ReadAssignmentFromRoutes([initial_route], True)
+        else:
+            self.initial_solution = None
     
     def run(self):
-        assignment = self.model.SolveWithParameters(self.params)
-        return Solution(assignment, self)
+        start = time.time()
+        if self.initial_solution:
+            assignment = self.model.SolveFromAssignmentWithParameters(self.initial_solution, self.params)
+        else:
+            assignment = self.model.SolveWithParameters(self.params)
+        end = time.time()
+        
+        return Solution(assignment, self, end - start)
     
     @staticmethod
     def for_user(userId):
@@ -60,7 +82,9 @@ class TravellingSalesman:
 
 
 class Solution:
-    def __init__(self, assignment, routing):
+    def __init__(self, assignment, routing, duration):
+        self.running_time = duration
+        
         if not assignment:
             self.solved = False
             return
@@ -82,10 +106,11 @@ class Solution:
     @property
     def __dict__(self):
         if not self.solved:
-            return { 'solved': False }
+            return { 'solved': False, 'running_time': self.running_time }
         else:
             return {
                 'solved': True,
+                'running_time': self.running_time,
                 'time': self.time,
                 'stops': [stop.__dict__ for stop in self.stops],
                 'legs': [leg.__dict__ for leg in self.legs]
@@ -93,11 +118,12 @@ class Solution:
     
     def __repr__(self):
         if not self.solved:
-            data = { 'solved': False }
+            data = { 'solved': False, 'running_time': self.running_time }
         else:
             data = {
                 'solved': True,
                 'time': self.time,
+                'running_time': self.running_time,
                 'stops': list(self.stops),
                 'legs': '[' + ', '.join([leg.__repr__() for leg in self.legs]) + ']'
             }
@@ -105,10 +131,12 @@ class Solution:
         return 'Solution(' + data.__repr__() + ')'
     
     def __str__(self):
+        if not self.solved:
+            return 'Solution(unsolved; ' + str(self.running_time) + ')'
         return '\n'.join((
             '*' * 30 + ' Solution(' + h(self.time) + ') ' + '*' * 30,
             '\n'.join(map(str, self.legs)) if self.solved else 'NO SOLUTION',
-            '*' * 80
+            '*' * 30 + str(self.running_time).rjust(19) + ' ' + '*' * 30
         ))
 
 
