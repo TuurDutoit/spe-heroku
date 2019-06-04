@@ -142,17 +142,16 @@ class DBDataSet(DataSet):
             service_time = (end - start).total_seconds()
             time_offset = tz.localize(dt.datetime.combine(dt.date.today(), MORNING))
             start_secs = ((start - time_offset).total_seconds())
-            time_window = (start_secs, start_secs)
             
-            events.append(BasicStop(
+            events.append(ExistingStop(
                 obj_name = 'event',
                 record = event,
                 service = { 'type': event.event_subtype, 'time': service_time },
                 location = location,
-                penalty = None,
-                time_window = time_window,
-                existing = True
+                arrival = start_secs
             ))
+        
+        logger.debug('%s', events[0].__dict__)
         
         # Check for overlapping events
         # This makes the model choke, as it is not feasible of course
@@ -265,6 +264,19 @@ class BasicStop:
             key: getattr(self, key)
             for key in ['obj_name', 'record', 'service_type', 'service_time', 'penalty', 'location', 'time_window', 'existing']
         })
+
+class ExistingStop(BasicStop):
+    def __init__(self, **kwargs):
+        self.arrival = kwargs.get('arrival', None)
+        
+        if self.arrival != None and 'time_window' not in kwargs:
+            kwargs['time_window'] = (self.arrival, self.arrival)
+        
+        kwargs['existing'] = True
+        kwargs['penalty'] = True
+        
+        super().__init__(**kwargs)
+        
 
 # Converts a naive datetime object that is supposed to be in timezone <tz> to a UTC datetime 
 def to_utc(date, tz):
