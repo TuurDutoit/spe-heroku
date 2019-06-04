@@ -12,7 +12,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 SERVICES = [
-    { 'type': 'meeting', 'time': 2 * 60 * 60 }
+    { 'type': 'meeting', 'time': 1 * 60 * 60 }
 ]
 BASIC_OBJECTS = ['account', 'contact', 'lead', 'opportunity']
 PENALTY = 24*60*60
