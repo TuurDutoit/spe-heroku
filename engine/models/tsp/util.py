@@ -119,7 +119,7 @@ def set_transit_callback(routing, transit_callback_index=None):
 def get_search_params():
     params = pywrapcp.DefaultRoutingSearchParameters()
     params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    params.time_limit.seconds = 10
+    params.time_limit.seconds = 15
     #params.number_of_solutions_to_collect = 3
 
     return params
