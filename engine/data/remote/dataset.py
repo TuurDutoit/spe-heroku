@@ -40,7 +40,7 @@ class DBDataSet(DataSet):
                 stop.obj_name,
                 stop.record.pk,
                 stop.location.related_to_component if stop.location else '<empty>',
-                stop.record.score if hasattr(stop.record, 'score') else '<empty>'
+                stop.record.score if hasattr(stop.record, 'score') else -1
             )
             for stop in self.stops
         ])
