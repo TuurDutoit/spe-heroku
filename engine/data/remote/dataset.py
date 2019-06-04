@@ -15,7 +15,7 @@ SERVICES = [
     { 'type': 'meeting', 'time': 1 * 60 * 60 }
 ]
 BASIC_OBJECTS = ['account', 'contact', 'lead', 'opportunity']
-PENALTY = 24*60*60
+PENALTY = 60
 MORNING = dt.time(9, 0, 0, 0)
 EVENING = dt.time(18, 0, 0, 0)
 DEFAULT_DRIVING_TIME = 30 * 60
