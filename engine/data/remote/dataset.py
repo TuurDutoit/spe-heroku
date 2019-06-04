@@ -5,6 +5,7 @@ from .util import get_locations_related_to_map, get_routes_for_location_ids, get
 from ..util import init_matrix, map_by, get_deep, find_deep
 from ..common import RecordSet, DataSet
 from pytz import timezone
+from operator import attrgetter
 import random
 import datetime as dt
 import logging
@@ -109,6 +110,7 @@ class DBDataSet(DataSet):
     
     def _create_existing_stops(self, date):
         tz = self.timezone = get_timezone_for(self.user)
+        events = []
         
         for event in self.event.all:
             # Get location of the event
@@ -142,7 +144,7 @@ class DBDataSet(DataSet):
             start_secs = ((start - time_offset).total_seconds())
             time_window = (start_secs, start_secs)
             
-            self.stops.append(BasicStop(
+            events.append(BasicStop(
                 obj_name = 'event',
                 record = event,
                 service = { 'type': event.event_subtype, 'time': service_time },
@@ -151,6 +153,31 @@ class DBDataSet(DataSet):
                 time_window = time_window,
                 existing = True
             ))
+        
+        # Check for overlapping events
+        # This makes the model choke, as it is not feasible of course
+        events = sorted(events, key=lambda stop: stop.time_window[0])
+        current_time = 0
+        
+        for stop in events:
+            start = stop.time_window[0]
+            # Check if this event overlaps with the previous one
+            if start < current_time:
+                # Check if it overlaps *fully*
+                # i.e. the start and end times are both within the previous event
+                if start + stop.service_time <= current_time:
+                    # This event overlaps fully
+                    # Don't add it to stops
+                    continue
+                else:
+                    # Only start time overlaps
+                    diff = current_time - start
+                    stop.time_window = (current_time, current_time)
+                    stop.service_time = stop.service_time - diff
+            
+            self.stops.append(stop)
+            current_time = stop.time_window[0] + stop.service_time
+        
     
     def get_stops(self):
         return self.stops
