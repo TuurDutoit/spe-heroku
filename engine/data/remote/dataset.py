@@ -112,13 +112,11 @@ class DBDataSet(DataSet):
                 paths += [(obj_name, event.who_id, component)
                     for obj_name in ('contact', 'lead')
                     for component in OBJECTS[obj_name]['components']
-                    if event.who_id
                 ]
             
             if event.account_id:
                 paths += [('account', event.account_id, component)
                     for component in OBJECTS['account']['components']
-                    if event.account_id
                 ]
             
             location = find_deep(self.location_map, paths, default=None)

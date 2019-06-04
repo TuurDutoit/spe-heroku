@@ -534,7 +534,10 @@ class Lead(sf.Model):
     
     @property
     def score(self):
-        return max(0, ['Cold', 'Warm', 'Hot'].index(self.rating) * 50)
+        try:
+            return ['Cold', 'Warm', 'Hot'].index(self.rating) * 50
+        except ValueError:
+            return 20
 
 
 
