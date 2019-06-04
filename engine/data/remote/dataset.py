@@ -36,11 +36,12 @@ class DBDataSet(DataSet):
         self._create_existing_stops(date)
         
         logger.debug('All stops: %s' % [
-            '%s: %s/%s/%d' % (
+            '%s: %s/%s/%d/%d' % (
                 stop.obj_name,
                 stop.record.pk,
                 stop.location.related_to_component if stop.location else '<empty>',
-                stop.record.score if hasattr(stop.record, 'score') else -1
+                stop.record.score if hasattr(stop.record, 'score') else -1,
+                stop.penalty if stop.penalty != None else -1
             )
             for stop in self.stops
         ])
