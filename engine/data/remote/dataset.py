@@ -183,6 +183,12 @@ class DBDataSet(DataSet):
         return self.stops
         
     def get_driving_time(self, from_stop, to_stop):
+        # Driving time between existing events is always set to 0
+        # This to make sure that the model is feasible
+        # and it doesn't matter anyway, we're not moving them.
+        if from_stop.is_existing() and to_stop.is_existing():
+            return 0
+            
         start_loc = from_stop.get_location()
         end_loc = to_stop.get_location()
         driving_time = DEFAULT_DRIVING_TIME
