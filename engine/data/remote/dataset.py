@@ -45,16 +45,18 @@ class DBDataSet(DataSet):
         self._create_basic_stops()
         self._create_existing_stops(date)
         
-        logger.debug('All stops: %s' % [
-            '%s: %s/%s/%d/%d' % (
+        logger.debug('All stops:\n%s' % '\n'.join([
+            '%s: %s/%s/%d/%d/%d/%d' % (
                 stop.obj_name,
                 stop.record.pk,
                 stop.location.related_to_component if stop.location else '<empty>',
                 stop.record.score if hasattr(stop.record, 'score') else -1,
-                stop.penalty if stop.penalty != None else -1
+                stop.penalty if stop.penalty != None else -1,
+                stop.service_time,
+                stop.time_window[0] if stop.time_window else -1
             )
             for stop in self.stops
-        ])
+        ]))
     
     def _fetch_locations(self):
         # IDs of the records we have to fetch locations for
@@ -143,10 +145,14 @@ class DBDataSet(DataSet):
             end = event.end_date_time.astimezone(tz)
 
             if start.date() != date or start.time() < MORNING:
-                start = dt.datetime.combine(date, MORNING)
+                old_start = start
+                start = tz.localize(dt.datetime.combine(date, MORNING))
+                logger.debug('Clip START: %r -> %r', old_start, start)
 
             if end.date() != date or end.time() > EVENING:
-                end = dt.datetime.combine(date, EVENING)
+                old_end = end
+                end = tz.localize(dt.datetime.combine(date, EVENING))
+                logger.debug('Clip END: %r -> %r', old_end, end)
 
             service_time = (end - start).total_seconds()
             time_offset = tz.localize(dt.datetime.combine(dt.date.today(), MORNING))
@@ -210,7 +216,7 @@ class DBDataSet(DataSet):
         # even with existing events that might not be feasibly scheduled
         if from_stop.is_existing() and to_stop.is_existing():
             max_time_between = to_stop.time_window[0] - (from_stop.time_window[0] + from_stop.service_time)
-            driving_time = min(driving_time, max_time_between)
+            driving_time = min(driving_time, abs(max_time_between))
         
         return driving_time
     

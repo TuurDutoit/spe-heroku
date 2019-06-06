@@ -33,6 +33,9 @@ class TSPContext:
         self.depot = 0
         self.day_duration = int((data_set.day['end'] - data_set.day['start']).total_seconds())
         self.max_slack = self.day_duration
+        
+        logger.debug('Number of stops: %d', self.num_stops)
+        logger.debug('Number of nodes: %d', self.num_nodes)
     
     @property
     def num_stops(self):

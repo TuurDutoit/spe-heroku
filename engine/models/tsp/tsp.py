@@ -1,6 +1,9 @@
 from ortools.constraint_solver import pywrapcp
 from .util import create_context, create_context_for, get_search_params, set_transit_callback, timestamp, h
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 D_TIME = 'time'
 
@@ -12,6 +15,8 @@ class TravellingSalesman:
         self.params = get_search_params()
         
         self._setup()
+        
+        logger.debug('Model size: %d', self.model.Size())
     
     def _setup(self):
         # Set global cost function as cumulative time

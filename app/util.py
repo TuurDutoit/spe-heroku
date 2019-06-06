@@ -3,7 +3,7 @@ import os
 def env(name, default=None, decode=str):
     s = os.environ.get(name, default)
     
-    if default != None:
+    if s != None:
         s = decode(s)
     
     return s
