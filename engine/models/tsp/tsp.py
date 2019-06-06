@@ -36,6 +36,7 @@ class TravellingSalesman:
             if time_window:
                 index = self.manager.NodeToIndex(i)
                 d_time.CumulVar(index).SetRange(int(time_window[0]), int(time_window[1]))
+                self.model.AddToAssignment(d_time.SlackVar(index))
         # TODO
         # 3. Don't visit locations related to the same record
         

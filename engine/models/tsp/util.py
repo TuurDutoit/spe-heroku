@@ -1,11 +1,22 @@
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 from engine.data import get_data_set_for
+from app.util import env
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 MIN = 60
 HOUR = 60 * MIN
 DAY = 24 * HOUR
+
+TIMEOUT = env('TIMEOUT', 10, int)
+MAX_SLACK = env('MAX_SLACK', 2 * HOUR, int)
+SOLUTION_LIMIT = env('SOLUTION_LIMIT', None, int)
+OVERRIDE_TRANSIT_TIME = env('OVERRIDE_TRANSIT_TIME', None, int)
+FIRST_SOLUTION_STRATEGY = env('FIRST_SOLUTION_STRATEGY', 'PATH_CHEAPEST_ARC')
+
 
 class DataError(Exception):
     pass
@@ -20,8 +31,8 @@ class TSPContext:
         # Defaults
         self.num_vehicles = 1
         self.depot = 0
-        self.day_duration = (18 - 9) * HOUR
-        self.max_slack = 2 * HOUR
+        self.day_duration = int((data_set.day['end'] - data_set.day['start']).total_seconds())
+        self.max_slack = self.day_duration
     
     @property
     def num_stops(self):
@@ -96,10 +107,17 @@ def create_context(data_set):
 
 
 def create_transit_callback(routing):
+    times = set()
     def transit_callback(from_index, to_index):
+        if OVERRIDE_TRANSIT_TIME != None:
+            return OVERRIDE_TRANSIT_TIME
         from_node = routing.manager.IndexToNode(from_index)
         to_node = routing.manager.IndexToNode(to_index)
-        return routing.context.get_transit_time(from_node, to_node)
+        transit = routing.context.get_transit_time(from_node, to_node)
+        if not transit in times:
+            logger.debug(transit)
+            times.add(transit)
+        return transit
 
     return transit_callback
 
@@ -124,8 +142,11 @@ def set_transit_callback(routing, transit_callback_index=None):
 
 def get_search_params():
     params = pywrapcp.DefaultRoutingSearchParameters()
-    params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    params.time_limit.seconds = 15
+    params.first_solution_strategy = getattr(routing_enums_pb2.FirstSolutionStrategy, FIRST_SOLUTION_STRATEGY)
+    params.time_limit.seconds = TIMEOUT
+    
+    if SOLUTION_LIMIT != None:
+        params.solution_limit = SOLUTION_LIMIT
     #params.number_of_solutions_to_collect = 3
 
     return params

@@ -4,11 +4,13 @@ from .conf import OBJECTS
 from .util import get_locations_related_to_map, get_routes_for_location_ids, get_timezone_for
 from ..util import init_matrix, map_by, get_deep, find_deep
 from ..common import RecordSet, DataSet
+from app.util import env, lenv
 from pytz import timezone
 from operator import attrgetter
 import random
 import datetime as dt
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +18,13 @@ SERVICES = [
     { 'type': 'meeting', 'time': 1 * 60 * 60 }
 ]
 BASIC_OBJECTS = ['account', 'contact', 'lead', 'opportunity']
-PENALTY = 24*60*60
-MORNING = dt.time(9, 0, 0, 0)
-EVENING = dt.time(18, 0, 0, 0)
-DEFAULT_DRIVING_TIME = 30 * 60
+PENALTY = env('PENALTY', 9*60*60, int)
+DAY_START = lenv('DAY_START', '9:0:0', int, sep=':')
+DAY_END = lenv('DAY_END', '18:0:0', int, sep=':')
+MORNING = dt.time(*DAY_START)
+EVENING = dt.time(*DAY_END)
+DEFAULT_DRIVING_TIME = env('DEFAULT_DRIVING_TIME', 30*60, int)
+OVERRIDE_DRIVING_TIME = env('OVERRIDE_DRIVING_TIME', None, int)
 
 class DBDataSet(DataSet):
     def __init__(self, user, accounts, contacts, leads, opportunities, events, date):
@@ -30,6 +35,10 @@ class DBDataSet(DataSet):
         self.opportunity = RecordSet(opportunities)
         self.event = RecordSet(events)
         self.stops = []
+        self.day = {
+            'start': dt.datetime.combine(date, MORNING),
+            'end': dt.datetime.combine(date, EVENING)
+        }
         
         self._fetch_locations()
         self._fetch_routes()
@@ -183,6 +192,9 @@ class DBDataSet(DataSet):
         return self.stops
         
     def get_driving_time(self, from_stop, to_stop):
+        if OVERRIDE_DRIVING_TIME != None:
+            return OVERRIDE_DRIVING_TIME
+            
         start_loc = from_stop.get_location()
         end_loc = to_stop.get_location()
         driving_time = DEFAULT_DRIVING_TIME
