@@ -7,6 +7,9 @@ from .util import to_json
 from .util.endpoint import Endpoint, ModelEndpoint
 from .util.request import RequestData
 from .util.response import error, success
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class OldRecalculateEndpoint(PermissionRequiredMixin, Endpoint):
@@ -60,21 +63,23 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         change = data.getdict('change', default=None)
         
         # Update locations, routes, etc.
-        user_ids = handle_change(change)
+        ctxs = handle_change(change)
+        logger.debug(ctxs)
         
         # Recalculate recommendations
-        users = []
+        results = []
         
-        for userId in user_ids:
-            recs, solution = refresh_recommendations_for(userId)
-            users.append({
-                'userId': userId,
+        for ctx in ctxs:
+            recs, solution = refresh_recommendations_for(ctx)
+            results.append({
+                'userId': ctx[0],
+                'date': ctx[1],
                 'recommendations': [to_json(rec) for rec in recs],
                 'solution': solution.__dict__,
                 'schedule': str(solution)
             })
         
-        return success(users)
+        return success(results)
 
 class AccountsEndpoint(PermissionRequiredMixin, ModelEndpoint):
     permission_required = 'web.view_account'

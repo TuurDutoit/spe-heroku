@@ -2,7 +2,7 @@ from django.db.models import Q
 from web.models import User, Account, Contact, Lead, Opportunity, Location, Route, Event
 from .conf import OBJECTS
 from .util import get_locations_related_to_map, get_routes_for_location_ids, get_timezone_for
-from ..util import init_matrix, map_by, get_deep, find_deep
+from ..util import init_matrix, map_by, get_deep, find_deep, select
 from ..common import RecordSet, DataSet
 from app.util import env, lenv
 from pytz import timezone
@@ -155,7 +155,7 @@ class DBDataSet(DataSet):
                 logger.debug('Clip END: %r -> %r', old_end, end)
 
             service_time = (end - start).total_seconds()
-            time_offset = tz.localize(dt.datetime.combine(dt.date.today(), MORNING))
+            time_offset = tz.localize(dt.datetime.combine(date, MORNING))
             start_secs = ((start - time_offset).total_seconds())
             
             events.append(BasicStop(
@@ -166,8 +166,6 @@ class DBDataSet(DataSet):
                 time_window = (start_secs, start_secs),
                 existing = True
             ))
-        
-        logger.debug('%s', events[0].__dict__)
         
         # Check for overlapping events
         # This makes the model choke, as it is not feasible of course
@@ -291,17 +289,17 @@ class BasicStop:
 def to_utc(date, tz):
     return tz.localize(date).astimezone(dt.timezone.utc)
 
-def get_morning(date):
-    return dt.datetime.combine(date, MORNING)
+def get_morning(date, tz):
+    return to_utc(dt.datetime.combine(date, MORNING), tz)
     
-def get_evening(date):
-    return dt.datetime.combine(date, EVENING)
+def get_evening(date, tz):
+    return to_utc(dt.datetime.combine(date, EVENING), tz)
 
 def get_data_set_for(userId, date=dt.date.today()):
     user = User.objects.get(pk=userId)
     tz = get_timezone_for(user)
-    start = to_utc(get_evening(date), tz)
-    end = to_utc(get_morning(date), tz)
+    start = get_evening(date, tz)
+    end = get_morning(date, tz)
     
     return DBDataSet(
         user,
@@ -316,6 +314,9 @@ def get_data_set_for(userId, date=dt.date.today()):
         ),
         date
     )
+
+def get_data_sets_for(ctxs):
+    return [get_data_set_for(*ctx) for ctx in ctxs]
 
 def get_records_for(Model, userId, **filters):
     return Model.objects.filter(owner_id=userId, **filters)

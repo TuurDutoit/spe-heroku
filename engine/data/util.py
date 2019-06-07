@@ -19,6 +19,12 @@ def select(items, key='pk'):
     
     return l
 
+# Can be used to add a static value to get_groups
+def static(value):
+    def static_value(item):
+        return (value, )
+    return static_value
+    
 def get_groups(item, keys):
     groups = [[]]
 
@@ -39,6 +45,13 @@ def get_groups(item, keys):
 
     return map(tuple, groups)
 
+def get_all_groups(items, keys):
+    groups = set()
+    
+    for item in items:
+        groups.update(get_groups(item, keys))
+    
+    return groups
 
 def group_by_flat(items, keys):
     m = {}

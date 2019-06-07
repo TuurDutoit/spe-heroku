@@ -1,9 +1,11 @@
 from django.db.models import Q
-from web.models import Account, Contact, Lead, Event, Location, Route
+from web.models import User, Account, Contact, Lead, Event, Location, Route
 from .maps import distance_matrix
 from ..conf import OBJECTS
-from ..util import get_locations_for, get_locations_related_to_ids, get_routes_for_locations, get_record_ids
-from ...util import group_by
+from ..util import get_locations_for, get_locations_related_to_ids, get_routes_for_locations, get_record_ids, get_timezone_for
+from ...util import map_by, group_by, get_all_groups, static
+from functools import partial
+import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,7 @@ def refresh_routes(obj_name, ids, action):
         elif obj_name in OTHER_OBJECTS:
             return action_upsert_other(obj_name, ids)
         else:
+            logger.warning('Unsupported object: ' + obj_name)
             return []
     else:
         logger.warning('Unknown action: ' + action)
@@ -29,16 +32,15 @@ def refresh_routes(obj_name, ids, action):
 
 def action_delete(obj_name, ids):
     locations = get_locations_related_to_ids(obj_name, ids, all=True).only('owner_id')
-    user_ids = [loc.owner_id for loc in locations]
     
     # Routes are deleted automatically because of the CASCADE policy
     locations.delete()
 
-    return user_ids
+    return get_ctxs(obj_name, ids)
 
 def action_upsert_other(obj_name, ids):
     records = get_records(OBJECTS[obj_name], ids)
-    return set([record.owner_id for record in records])
+    return get_ctxs_for(obj_name, records)
 
 def action_upsert(obj_name, ids):
     existing_locations = create_location_map(get_locations_related_to_ids(obj_name, ids, all=True))
@@ -88,7 +90,7 @@ def action_upsert(obj_name, ids):
     Route.objects.bulk_create(routes_to_create)
     delete_routes_for(locations['invalid'])
     
-    return user_ids
+    return get_ctxs_for(obj_name, records)
 
 
 # Given a number of new or updated locations (maybe_valid_locations)
@@ -252,6 +254,26 @@ def get_address(record, component, obj):
 
     return ', '.join(parts)
 
+def get_ctxs(obj_name, ids):
+    records = get_records(OBJECTS[obj_name], ids)
+    return get_ctxs_for(obj_name, records)
+
+def get_ctxs_for(obj_name, records):
+    if obj_name == 'event':
+        user_ids = set([e.owner_id for e in records])
+        users = User.objects.filter(pk__in=user_ids)
+        user_map = map_by(users, ('pk',))
+        return get_all_groups(records, ('owner_id', partial(get_event_dates, user_map)))
+    else:
+        return get_all_groups(records, ('owner_id', static(datetime.date.today())))
+
+def get_event_dates(user_map, event):
+    user = user_map[event.owner_id]
+    tz = get_timezone_for(user)
+    return (
+        event.start_date_time.astimezone(tz).date(),
+        event.end_date_time.astimezone(tz).date()
+    )
 
 def upsert_location(record, component, existing_locations, obj_name):
     address = get_address(record, component, OBJECTS[obj_name])
