@@ -1,3 +1,5 @@
+python-dateutil
+pytz
 django
 gunicorn
 django-heroku
