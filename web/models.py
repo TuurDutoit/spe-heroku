@@ -667,13 +667,20 @@ class Event(sf.Model):
 
 
 
+WHAT_TYPES = [
+    ('account', 'Account'),
+    ('opportunity', 'Opportunity'),
+    ('lead', 'Lead'),
+    ('contact', 'Contact')
+]
 
 class Recommendation(models.Model):
     score = models.FloatField()
     reason1 = models.CharField(max_length=50)
     reason2 = models.CharField(max_length=50)
     reason3 = models.CharField(max_length=50)
-    account_id = models.CharField(max_length=18)
+    what_type = models.CharField(choices=WHAT_TYPES, max_length=11)
+    what_id = models.CharField(max_length=18)
     owner_id = models.CharField(max_length=18)
     
     class Meta:

@@ -58,7 +58,7 @@ class EventAdmin(ReadOnlyModelAdmin):
 
 
 class RecommendationAdmin(admin.ModelAdmin):
-    list_display = ('score', 'reason1', 'account_id', 'owner_id')
+    list_display = ('score', 'reason1', 'what_type', 'what_id', 'owner_id')
 
 
 class LocationAdmin(admin.ModelAdmin):

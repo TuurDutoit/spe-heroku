@@ -33,7 +33,8 @@ def get_recommendations_for(ctx):
                 rec = Recommendation(
                     score = record.score,
                     reason1 = 'This account looks promising',
-                    account_id = record.pk,
+                    what_type = 'account',
+                    what_id = record.pk,
                     owner_id = record.owner_id
                 )
                 

@@ -33,7 +33,8 @@ class OldRecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         newRec = Recommendation(
             score=max(min(acct.annual_revenue / 1000000, 100), 0),
             reason1='Annual revenue of €' + str(acct.annual_revenue),
-            account_id=acct.id,
+            what_type='account',
+            what_id=acct.id,
             owner_id=user.id
         )
         newRec.save()
@@ -99,4 +100,4 @@ class RecommendationsEndpoint(PermissionRequiredMixin, ModelEndpoint):
     permission_required = 'web.view_recommendation'
     http_method_names = ['get']
     Model = Recommendation
-    readable_keys = ['id', 'score', 'reason1', 'reason2', 'reason3', 'account_id', 'owner_id']
+    readable_keys = ['id', 'score', 'reason1', 'reason2', 'reason3', 'what_type', 'what_id', 'owner_id']
