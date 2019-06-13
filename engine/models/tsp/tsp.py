@@ -1,10 +1,16 @@
 from ortools.constraint_solver import pywrapcp
 from .util import create_context, create_context_for, get_search_params, set_transit_callback, timestamp, h
+from app.util import env, boolean
 import time
 import logging
 
 logger = logging.getLogger(__name__)
 
+ENABLE_TIME_DIMENSION = env('ENABLE_TIME_DIMENSION', True, boolean)
+ENABLE_TIME_WINDOWS = env('ENABLE_TIME_WINDOWS', True, boolean)
+ENABLE_DISJUNCTIONS = env('ENABLE_DISJUNCTIONS', True, boolean)
+ENABLE_DROPPING = env('ENABLE_DROPPING', True, boolean)
+ENABLE_INITIAL_ROUTE = env('ENABLE_INITIAL_ROUTE', True, boolean)
 D_TIME = 'time'
 
 class TravellingSalesman:
@@ -22,55 +28,77 @@ class TravellingSalesman:
         # Set global cost function as cumulative time
         transit_cb = set_transit_callback(self)
         
-        # 1. Working day and breaks
-        # Add time constraint
-        self.model.AddDimension(
-            transit_cb,
-            self.context.max_slack,  # No maximum waiting time
-            self.context.day_duration, # Working 9am to 6pm
-            True, # Travel time starts at 0, of course
-            D_TIME
-        )
-        d_time = self.model.GetDimensionOrDie(D_TIME)
-        
-        # TODO
-        #  2. Existing schedule (based on time windows)
-        for i in range(self.context.num_nodes):
-            time_window = self.context.get_time_window(i)
+        if ENABLE_TIME_DIMENSION:
+            # 1. Working day and breaks
+            # Add time constraint
+            self.model.AddDimension(
+                transit_cb,
+                self.context.max_slack,  # No maximum waiting time
+                self.context.day_duration, # Working 9am to 6pm
+                True, # Travel time starts at 0, of course
+                D_TIME
+            )
+            d_time = self.model.GetDimensionOrDie(D_TIME)
             
-            if time_window:
-                index = self.manager.NodeToIndex(i)
-                d_time.CumulVar(index).SetRange(int(time_window[0]), int(time_window[1]))
-                self.model.AddToAssignment(d_time.SlackVar(index))
-        # TODO
-        # 3. Don't visit locations related to the same record
-        
-        # 4. Allow dropping nodes
-        for i in range(self.context.num_nodes):
-            penalty = self.context.get_penalty(i)
+            if ENABLE_TIME_WINDOWS:
+                #  2. Existing schedule (based on time windows)
+                for i in range(self.context.num_nodes):
+                    time_window = self.context.get_time_window(i)
+                    
+                    if time_window:
+                        index = self.manager.NodeToIndex(i)
+                        d_time.CumulVar(index).SetRange(int(time_window[0]), int(time_window[1]))
+                        self.model.AddToAssignment(d_time.SlackVar(index))
+           
+        if ENABLE_DISJUNCTIONS:     
+            # 3. Don't visit locations related to the same record
+            loc_map = {}
+            for i in range(self.context.num_nodes):
+                loc_id = self.context.get_loc_id(i)
+                
+                if loc_id:
+                    if not loc_id in loc_map:
+                        loc_map[loc_id] = []
+                    loc_map[loc_id].append(i)
             
-            if penalty != None:
-                index = self.manager.NodeToIndex(i)
-                self.model.AddDisjunction([index], int(penalty))
+            for loc_id in loc_map:
+                locs = loc_map[loc_id]
+                
+                if len(locs) > 1:
+                    logger.debug('Disjunction: %s', locs)
+                    self.model.AddDisjunction([self.manager.NodeToIndex(i) for i in locs])
         
-        # 5. Populate initial solution from existing schedule
-        # If we don't do this, the model sometimes struggles to find a solution
-        # with existing events (probably related to the small time windows)
-        initial_route = []
-        for i in range(self.context.num_nodes):
-            is_existing = self.context.is_existing(i)
+        if ENABLE_DROPPING:
+            # 4. Allow dropping nodes
+            for i in range(self.context.num_nodes):
+                penalty = self.context.get_penalty(i)
+                
+                if penalty != None:
+                    index = self.manager.NodeToIndex(i)
+                    self.model.AddDisjunction([index], int(penalty))
+        
+        if ENABLE_INITIAL_ROUTE:
+            # 5. Populate initial solution from existing schedule
+            # If we don't do this, the model sometimes struggles to find a solution
+            # with existing events (probably related to the small time windows)
+            initial_route = []
+            for i in range(self.context.num_nodes):
+                is_existing = self.context.is_existing(i)
+                
+                if is_existing:
+                    initial_route.append(i)
             
-            if is_existing:
-                initial_route.append(i)
-        
-        if len(initial_route) >= 1:
-            self.initial_solution = self.model.ReadAssignmentFromRoutes([initial_route], True)
-        else:
-            self.initial_solution = None
+            if len(initial_route) >= 1:
+                start = time.time()
+                self.initial_solution = self.model.ReadAssignmentFromRoutes([initial_route], True)
+                end = time.time()
+                logger.debug('Initial solution: %ds', end - start)
+            else:
+                self.initial_solution = None
     
     def run(self):
         start = time.time()
-        if self.initial_solution:
+        if getattr(self, 'initial_solution', None):
             assignment = self.model.SolveFromAssignmentWithParameters(self.initial_solution, self.params)
         else:
             assignment = self.model.SolveWithParameters(self.params)
@@ -142,7 +170,7 @@ class Solution:
         return '\n'.join((
             '*' * 30 + ' Solution(' + h(self.time) + ') ' + '*' * 30,
             '\n'.join(map(str, self.legs)) if self.solved else 'NO SOLUTION',
-            '*' * 30 + str(self.running_time).rjust(19) + ' ' + '*' * 30
+            '*' * 30 + ' ' + str(self.running_time).rjust(19) + ' ' + '*' * 30
         ))
 
 

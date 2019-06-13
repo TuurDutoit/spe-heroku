@@ -1,7 +1,7 @@
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 from engine.data import get_data_set_for
-from app.util import env
+from app.util import env, coalesce
 import math
 import logging
 
@@ -12,7 +12,7 @@ HOUR = 60 * MIN
 DAY = 24 * HOUR
 
 TIMEOUT = env('TIMEOUT', 10, int)
-MAX_SLACK = env('MAX_SLACK', 2 * HOUR, int)
+MAX_SLACK = env('MAX_SLACK', None, int)
 SOLUTION_LIMIT = env('SOLUTION_LIMIT', None, int)
 OVERRIDE_TRANSIT_TIME = env('OVERRIDE_TRANSIT_TIME', None, int)
 FIRST_SOLUTION_STRATEGY = env('FIRST_SOLUTION_STRATEGY', 'PATH_CHEAPEST_ARC')
@@ -32,7 +32,7 @@ class TSPContext:
         self.num_vehicles = 1
         self.depot = 0
         self.day_duration = int((data_set.day['end'] - data_set.day['start']).total_seconds())
-        self.max_slack = self.day_duration
+        self.max_slack = coalesce(MAX_SLACK, self.day_duration)
         
         logger.debug('Number of stops: %d', self.num_stops)
         logger.debug('Number of nodes: %d', self.num_nodes)
@@ -86,10 +86,10 @@ class TSPContext:
     def get_driving_time(self, from_node_index, to_node_index):
         if from_node_index == 0 or to_node_index == 0:
             return 0
-        else:
-            from_stop = self.get_stop_for_node(from_node_index)
-            to_stop = self.get_stop_for_node(to_node_index)
-            return self.data_set.get_driving_time(from_stop, to_stop)
+            
+        from_stop = self.get_stop_for_node(from_node_index)
+        to_stop = self.get_stop_for_node(to_node_index)
+        return self.data_set.get_driving_time(from_stop, to_stop)
     
     def get_service_time(self, node_index):
         if not self.is_stop(node_index):
@@ -100,6 +100,12 @@ class TSPContext:
     
     def get_transit_time(self, from_node, to_node):
         return self.get_service_time(from_node) + self.get_driving_time(from_node, to_node)
+    
+    def get_loc_id(self, node_index):
+        if not self.is_stop(node_index):
+            return None
+        
+        return self.data_set.get_loc_id(self.get_stop_for_node(node_index))
 
 
 def create_context_for(userId):
@@ -110,17 +116,14 @@ def create_context(data_set):
 
 
 def create_transit_callback(routing):
-    times = set()
     def transit_callback(from_index, to_index):
         if OVERRIDE_TRANSIT_TIME != None:
             return OVERRIDE_TRANSIT_TIME
+        
         from_node = routing.manager.IndexToNode(from_index)
         to_node = routing.manager.IndexToNode(to_index)
-        transit = routing.context.get_transit_time(from_node, to_node)
-        if not transit in times:
-            logger.debug(transit)
-            times.add(transit)
-        return transit
+
+        return routing.context.get_transit_time(from_node, to_node)
 
     return transit_callback
 

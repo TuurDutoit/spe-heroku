@@ -1,39 +1,38 @@
-# Setup Django environment with models etc.
 from django.core.wsgi import get_wsgi_application
 import os
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
 application = get_wsgi_application()
 
-
-"""
-from engine.data.remote.routes.manage import refresh_routes
-from web.models import Account, Route, Location
-
-# Delete old data
-Route.objects.all().delete()
-Location.objects.all().delete()
-
-# Insert fresh data
-account_ids = [a.pk for a in Account.objects.filter(owner_id='0051i000001NHLCAA4')]
-refresh_routes('account', account_ids, 'insert')
+LAST_EVENT_QUERY = """
+SELECT WhatId, WhoId, MAX(EndDateTime)
+FROM Event
+WHERE WhatId IN %s OR WhoId IN %s
+GROUP BY CUBE(WhatId, WhoId)
+HAVING
+    (GROUPING(WhatId) = 1 OR GROUPING(WhoId) = 1) AND
+    (GROUPING(WhatId) = 0 OR GROUPING(WhoId) = 0) AND
+    (WhatId != NULL OR WhoId != NULL) AND
+    (WhatId IN %s OR WhoId IN %s)
 """
 
-"""
-refresh_routes('account', ['0011i00000BnM4LAAV'], 'update')
-"""
+def listify(arr):
+    return '(' + ','.join(map(lambda item: "'%s'" % item, arr)) + ')'
 
-from engine.models.tsp import TravellingSalesman, create_context_for
+from django.db import connections
 
-context = create_context_for('0051i000001NHLCAA4')
-tsp = TravellingSalesman(context)
-solution = tsp.run()
-print(solution)
+what_ids = ('0011i000007AZgwAAG', '0011i00000BnM4LAAV')
+who_ids = ('0031i00000CubdRAAR', '0031i000006utCBAAY')
 
-"""
-from web.models import Account, Contact
-rec = Account.objects.get(pk='0011i00000BnM3hAAF')
-print(rec.annual_revenue)
-print(rec.score)
-print(rec.score * (24*60*60) / 100)
-"""
+print(what_ids)
+
+with connections['salesforce'].cursor() as cursor:
+    cursor.execute(LAST_EVENT_QUERY % (what_ids, who_ids, what_ids, who_ids), [])
+    rows = cursor.fetchall()
+    m = {}
+    
+    for row in rows:
+        recordId = row[0] or row[1]
+        m[recordId] = row[2]
+
+print('Last activity for 0011i000007AZgwAAG:', m['0011i000007AZgwAAG'])

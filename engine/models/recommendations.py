@@ -3,8 +3,16 @@ from engine.data import get_data_set_for, remove_recommendations_for, insert_rec
 from engine.data.util import matrix_str
 from web.models import Recommendation, Account
 from .tsp import TravellingSalesman, create_context
+from app.util import env, boolean
 import logging
 
+
+ENABLE = {
+    'account': env('REC_ACCOUNT', True, boolean),
+    'opportunity': env('REC_OPPORTUNITY', True, boolean),
+    'lead': env('REC_LEAD', True, boolean),
+    'contact': env('REC_CONTACT', True, boolean)
+}
 logger = logging.getLogger(__name__)
 
 def refresh_recommendations_for(ctx):
@@ -18,7 +26,6 @@ def refresh_recommendations_for(ctx):
 
 def get_recommendations_for(ctx):
     data = get_data_set_for(ctx[0], ctx[1])
-    logger.debug(data.event.total)
     context = create_context(data)
     tsp = TravellingSalesman(context)
     solution = tsp.run()
@@ -28,12 +35,13 @@ def get_recommendations_for(ctx):
     
     if solution.solved:
         for leg in solution.legs:
-            if leg.stop.obj_name == 'account':
+            obj_name = leg.stop.obj_name
+            if obj_name in ENABLE and ENABLE[obj_name]:
                 record = leg.stop.record
                 rec = Recommendation(
                     score = record.score,
-                    reason1 = 'This account looks promising',
-                    what_type = 'account',
+                    reason1 = 'This %s looks promising' % obj_name,
+                    what_type = obj_name,
                     what_id = record.pk,
                     owner_id = record.owner_id
                 )

@@ -4,7 +4,7 @@ from .conf import OBJECTS
 from .util import get_locations_related_to_map, get_routes_for_location_ids, get_timezone_for
 from ..util import init_matrix, map_by, get_deep, find_deep, select
 from ..common import RecordSet, DataSet
-from app.util import env, lenv
+from app.util import env, lenv, boolean, clamp, DAY
 from pytz import timezone
 from operator import attrgetter
 import random
@@ -15,7 +15,7 @@ import os
 logger = logging.getLogger(__name__)
 
 SERVICES = [
-    { 'type': 'meeting', 'time': 1 * 60 * 60 }
+    { 'type': 'meeting', 'time': 1 * 60 * 60, 'penalty': 1 },
 ]
 BASIC_OBJECTS = ['account', 'contact', 'lead', 'opportunity']
 PENALTY = env('PENALTY', 9*60*60, int)
@@ -25,6 +25,7 @@ MORNING = dt.time(*DAY_START)
 EVENING = dt.time(*DAY_END)
 DEFAULT_DRIVING_TIME = env('DEFAULT_DRIVING_TIME', 30*60, int)
 OVERRIDE_DRIVING_TIME = env('OVERRIDE_DRIVING_TIME', None, int)
+ENABLE_EVENTS = env('ENABLE_EVENTS', True, boolean)
 
 class DBDataSet(DataSet):
     def __init__(self, user, accounts, contacts, leads, opportunities, events, date):
@@ -33,8 +34,10 @@ class DBDataSet(DataSet):
         self.contact = RecordSet(contacts)
         self.lead = RecordSet(leads)
         self.opportunity = RecordSet(opportunities)
-        self.event = RecordSet(events)
+        if ENABLE_EVENTS:
+            self.event = RecordSet(events)
         self.stops = []
+        self.date = date
         self.day = {
             'start': dt.datetime.combine(date, MORNING),
             'end': dt.datetime.combine(date, EVENING)
@@ -43,20 +46,26 @@ class DBDataSet(DataSet):
         self._fetch_locations()
         self._fetch_routes()
         self._create_basic_stops()
-        self._create_existing_stops(date)
         
-        logger.debug('All stops:\n%s' % '\n'.join([
-            '%s: %s/%s/%d/%d/%d/%d' % (
-                stop.obj_name,
-                stop.record.pk,
-                stop.location.related_to_component if stop.location else '<empty>',
-                stop.record.score if hasattr(stop.record, 'score') else -1,
-                stop.penalty if stop.penalty != None else -1,
-                stop.service_time,
-                stop.time_window[0] if stop.time_window else -1
+        if ENABLE_EVENTS:
+            self._create_existing_stops(date)
+        
+        logger.debug('All stops:')
+        for i in range(len(self.stops)):
+            stop = self.stops[i]
+            logger.debug(
+                '%d. %s: %s/%s/%d/%d/%d/%d/%s' % (
+                    i + 1,
+                    stop.obj_name,
+                    stop.record.pk,
+                    stop.location.related_to_component if stop.location else '<empty>',
+                    stop.record.score if hasattr(stop.record, 'score') else -1,
+                    stop.penalty if stop.penalty != None else -1,
+                    stop.service_time,
+                    stop.time_window[0] if stop.time_window else -1,
+                    stop.remote
+                )
             )
-            for stop in self.stops
-        ]))
     
     def _fetch_locations(self):
         # IDs of the records we have to fetch locations for
@@ -64,23 +73,26 @@ class DBDataSet(DataSet):
             'account': set(self.account.ids),
             'contact': set(self.contact.ids),
             'lead': set(self.lead.ids),
-            'event': set(self.event.ids)
         }
+        
+        if ENABLE_EVENTS:
+            id_map['event'] = set(self.event.ids)
         
         # Opportunities get their locations from related Accounts
         for opp in self.opportunity.all:
             if opp.account_id:
                 id_map['account'].add(opp.account_id)
         
-        # Events get their locations from various sources...
-        for event in self.event.all:
-            if event.who_id:
-                # It doesn't matter that we add the WhoId to both,
-                # only one will match
-                id_map['contact'].add(event.who_id)
-                id_map['lead'].add(event.who_id)
-            if event.account_id:
-                id_map['account'].add(event.account_id)
+        if ENABLE_EVENTS:
+            # Events get their locations from various sources...
+            for event in self.event.all:
+                if event.who_id:
+                    # It doesn't matter that we add the WhoId to both,
+                    # only one will match
+                    id_map['contact'].add(event.who_id)
+                    id_map['lead'].add(event.who_id)
+                if event.account_id:
+                    id_map['account'].add(event.account_id)
         
         locations = get_locations_related_to_map(id_map)
         self.location = RecordSet(locations)
@@ -110,13 +122,22 @@ class DBDataSet(DataSet):
                     
                     location = get_deep(self.location_map, path, default=None)
                     
+                    if record.last_activity_date:
+                        activity_delta = self.date - record.last_activity_date
+                        delta_days = (activity_delta).total_seconds() * DAY
+                        num_inactive_days = clamp(0, delta_days, 30)
+                    else:
+                        num_inactive_days = 30
+                        
+                    penalty = ((record.score / 100) * 0.75 + (num_inactive_days / 30) * 0.25) * PENALTY
+                    
                     for service in SERVICES:
                         self.stops.append(BasicStop(
                             obj_name = obj_name,
                             record = record,
                             service = service,
                             location = location,
-                            penalty = record.score * PENALTY / 100,
+                            penalty = penalty * service['penalty'],
                         ))
     
     def _create_existing_stops(self, date):
@@ -229,6 +250,9 @@ class DBDataSet(DataSet):
     
     def is_existing(self, stop):
         return stop.is_existing()
+    
+    def get_loc_id(self, stop):
+        return stop.get_record()
             
 
 class BasicStop:
@@ -297,9 +321,18 @@ def get_evening(date, tz):
 
 def get_data_set_for(userId, date=dt.date.today()):
     user = User.objects.get(pk=userId)
-    tz = get_timezone_for(user)
-    start = get_evening(date, tz)
-    end = get_morning(date, tz)
+    
+    if ENABLE_EVENTS:
+        tz = get_timezone_for(user)
+        start = get_evening(date, tz)
+        end = get_morning(date, tz)
+        events = get_records_for(Event, userId,
+            start_date_time__lte=start,
+            end_date_time__gte=end,
+            is_all_day_event=False
+        )
+    else:
+        events = []
     
     return DBDataSet(
         user,
@@ -307,11 +340,7 @@ def get_data_set_for(userId, date=dt.date.today()):
         get_records_for(Contact, userId),
         get_records_for(Lead, userId),
         get_records_for(Opportunity, userId),
-        get_records_for(Event, userId,
-            start_date_time__lte=start,
-            end_date_time__gte=end,
-            is_all_day_event=False
-        ),
+        events,
         date
     )
 
