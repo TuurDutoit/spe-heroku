@@ -9,7 +9,210 @@ from salesforce import models as sf
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib import admin
+from operator import itemgetter
+from math import exp, log
+import datetime
+from app.util import clamp
+import logging
 
+logger = logging.getLogger(__name__)
+
+DEFAULT=25
+NO_DEFAULT=object()
+UNITS = {
+    'seconds': 1,
+    'minutes': 60,
+    'hours': 60*60,
+    'days': 60*60*24,
+    'weeks': 60*60*24*7
+}
+SOURCE_SCORES = {
+    'Web': 50,
+    'Phone Inquiry': 70,
+    'Partner Referral': 100,
+    'Purchased List': 70,
+    'Other': 30,
+}
+INDUSTRY_SCORES = {
+    'Banking': 70,
+    'Biotechnology': 75,
+    'Communications': 80,
+    'Consulting': 100,
+    'Electronics': 80,
+    'Energy': 85,
+    'Engineering': 70,
+    'Entertainment': 50,
+    'Finance': 85,
+    'Food & Beverage': 100,
+    'Healthcare': 90,
+    'Government': 30,
+    'Insurance': 75,
+    'Not For Profit': 10,
+    'Hospitality': 35,
+    'Retail': 85,
+    'Technology': 100,
+    'Telecommunications': 95,
+}
+ACCOUNT_TYPE_SCORES = {
+    'Prospect': 100,
+    'Customer - Direct': 80,
+    'Customer - Channel': 70,
+}
+LEAD_STATUS_SCORES = {
+    'Open - Not Contacted': 100,
+    'Working - Contacted': 50,
+    'Closed - Converted': 0,
+    'Closed - Not Converted': 0,
+}
+OPP_STAGE_SCORES = {
+    'Prospecting': 90,
+    'Qualification': 30,
+    'Needs Analysis': 70,
+    'Value Proposition': 50,
+    'Id. Decision Makers': 20,
+    'Perception Analysis': 60,
+    'Proposal/Price Quote': 90,
+    'Negotiation/Review': 100,
+}
+
+def passthrough(val):
+    return float(val)
+
+def with_default(processor, default=DEFAULT):
+    def calc_with_default(val):
+        if val == None:
+            return default
+        return processor(val)
+    
+    return calc_with_default
+
+def div(denominator, default=DEFAULT):
+    def calc_div(val):
+        return int(val) / denominator
+    
+    return with_default(calc_div, default)
+
+
+# Formula: f(x) = scale * e^((x/-b) + d) + c
+# b: defines the shape of the curve
+# c: defines the horizontal asymptote, i.e. moves curve up/down
+#        Default: 0, to have score go to 0
+# d: moves the curve from left to right
+#       Default: ln(100), which ensures the graph passes through (0, 100), i.e. the max score is 100
+# scale: scales the graph. Can be used to turn it upside down for example (scale = -1)
+def exponential(b, d=log(100), c=0, scale=1, default=DEFAULT):
+    def calc_exponential(val):
+        return scale * exp(int(val) / (-b) + d) + c
+    
+    return with_default(calc_exponential, default)
+
+def exponential_point(p, d=log(100), c=0, scale=1, default=DEFAULT):
+    b = -p[0] / ( log((p[1] - c) / scale) - d )
+    return exponential(b, d, c, scale, default)
+
+def exponential_20(x20, *args):
+    return exponential_point((x20, 20), *args)
+    
+
+# Formula: f(x) = -e^((x/-b) + d) + c
+# b: defines the shape of the curve
+# c: defines the horizontal asymptote, i.e. moves curve up/down
+#       Default: 100, to cap scores at 100
+# d: moves the curve from left to right
+#       Default: ln(c), which ensures the graph passes through (0, 0)
+def inv_exp(b, d=None, c=100, default=DEFAULT):
+    if d == None:
+        d = log(c)
+    
+    return exponential(b, d, c, -1, default)
+
+def inv_exp_point(p, d=None, c=100, default=DEFAULT):
+    if d == None:
+        d = log(c)
+    
+    return exponential_point(p, d, c, -1, default)
+
+def inv_exp_80(x80, *args):
+    return inv_exp_point((x80, 80), *args)
+
+def has(val):
+    return 0 if val == None else 100
+
+def expect(expected=True):
+    def calc_expected(val):
+        return 100 if val == expected else 0
+    
+    return calc_expected
+
+def choose(score_map, default=DEFAULT):
+    def calc_choose(val):
+        return score_map.get(val, default)
+    
+    return calc_choose
+
+def rank(values, default=NO_DEFAULT):
+    score_per = 100 / (len(values) - 1)
+    
+    if default == NO_DEFAULT:
+        default = score_per
+    
+    def calc_rank(val):
+        if val in values:
+            index = values.index(val)
+            return index * score_per
+        else:
+            return default
+    
+    return calc_rank
+
+def date_diff(end=None, unit='days', future=False, default=DEFAULT):
+    if end == None:
+        end = datetime.datetime.now()
+        
+    def calc_date_diff(start):
+        e = end
+        # Start is a date, not datetime -> convert end to date
+        if not isinstance(start, datetime.datetime):
+            e = end.date()
+        # Start is aware -> add timezone to end
+        elif start.tzinfo != None:
+            e = e.astimezone(datetime.timezone.utc)
+        
+        if future:
+            diff = start - e
+        else:
+            diff = e - start
+            
+        return diff.total_seconds() / UNITS[unit]
+    
+    return with_default(calc_date_diff, default)
+
+def combine(*processors):
+    def calc_combine(val):
+        for processor in processors:
+            val = processor(val)
+        
+        return val
+    
+    return calc_combine
+
+def score(record, props):
+    factor_sum = sum(map(itemgetter(0), props))
+    
+    if factor_sum != 100:
+        logger.warning('Sum of factors is not 100: %s', factor_sum)
+    
+    return int(sum(map(
+        lambda prop: subscore(record, *prop[1:]) * prop[0],
+        props
+    )) / factor_sum)
+
+def subscore(record, propname, processor=passthrough):
+    val = getattr(record, propname)
+    s = clamp(0, processor(val), 100)
+    return s
+        
+    
 
 class User(sf.Model):
     about_me = sf.TextField(blank=True, null=True)
@@ -387,10 +590,36 @@ class Account(sf.Model):
         verbose_name = 'Account'
         verbose_name_plural = 'Accounts'
         # keyPrefix = '001'
-    
+        
     @property
     def score(self):
-        return min(100, max(0, int(self.annual_revenue) / 250_000)) if self.annual_revenue else 0
+        if not self.is_active or self.is_deleted:
+            return 0
+        
+        return score(self, [
+            (1, 'account_number', has),
+            (1, 'account_source', choose(SOURCE_SCORES)),
+            (5, 'annual_revenue', inv_exp(239000000)),
+            (10, 'customer_priority', rank(('Low', 'Medium', 'High'))),
+            (1, 'description', has),
+            (1, 'duns_number', has),
+            (3, 'industry', choose(INDUSTRY_SCORES)),
+            (10, 'last_activity_date', combine(date_diff(), inv_exp_80(20))),
+            (5, 'last_referenced_date', combine(date_diff(), inv_exp_80(30))),
+            (5, 'last_viewed_date', combine(date_diff(), inv_exp_80(14))),
+            (1, 'naics_code', has),
+            (4, 'number_of_employees', inv_exp_80(200)),
+            (4, 'numberof_locations', inv_exp_80(10)),
+            (1, 'phone', has),
+            (10, 'rating', rank(('Cold', 'Warm', 'Hot'))),
+            (1, 'sic', has),
+            (5, 'sla', rank(('Bronze', 'Platinum', 'Silver', 'Gold'))),
+            (10, 'slaexpiration_date', combine(date_diff(future=True), exponential_20(20))),
+            (10, 'type', choose(ACCOUNT_TYPE_SCORES)),
+            (10, 'upsell_opportunity', rank(('No', 'Maybe', 'Yes'))),
+            (1, 'website', has),
+            (1, 'year_started', has),
+        ])
 
 
 
@@ -463,7 +692,27 @@ class Contact(sf.Model):
     
     @property
     def score(self):
-        return 50
+        if self.is_deleted:
+            return False
+        
+        return score(self, [
+            (3, 'assistant_name', has),
+            (3, 'assistant_phone', has),
+            (3, 'department', has),
+            (3, 'description', has),
+            (3, 'email', has),
+            (20, 'email_bounced_date', combine(date_diff(), exponential_20(7))),
+            (3, 'first_name', has),
+            (15, 'last_activity_date', combine(date_diff(), inv_exp_80(20))),
+            (3, 'last_name', has),
+            (10, 'last_referenced_date', combine(date_diff(), inv_exp_80(30))),
+            (10, 'last_viewed_date', combine(date_diff(), inv_exp_80(14))),
+            (5, 'lead_source', choose(SOURCE_SCORES)),
+            (10, 'level', rank(('Tertiary', 'Secondary', 'Primary'))),
+            (3, 'mobile_phone', has),
+            (3, 'phone', has),
+            (3, 'title', has),
+        ])
 
 
 
@@ -534,10 +783,36 @@ class Lead(sf.Model):
     
     @property
     def score(self):
-        try:
-            return ['Cold', 'Warm', 'Hot'].index(self.rating) * 50
-        except ValueError:
-            return 20
+        if self.is_converted or self.is_deleted:
+            return 0
+        
+        return score(self, [
+            (1, 'address', has),
+            (5, 'annual_revenue', inv_exp(239000000)),
+            (1, 'company', has),
+            (1, 'company_duns_number', has),
+            (1, 'dandb_company', has),
+            (1, 'description', has),
+            (1, 'email', has),
+            (20, 'email_bounced_date', combine(date_diff(), exponential_20(7))),
+            (1, 'first_name', has),
+            (5, 'industry', choose(INDUSTRY_SCORES)),
+            (15, 'last_activity_date', combine(date_diff(), inv_exp_80(20))),
+            (1, 'last_name', has),
+            (10, 'last_referenced_date', combine(date_diff(), inv_exp_80(30))),
+            (10, 'last_viewed_date', combine(date_diff(), inv_exp_80(14))),
+            (5, 'lead_source', choose(SOURCE_SCORES)),
+            (1, 'mobile_phone', has),
+            (3, 'number_of_employees', inv_exp_80(200)),
+            (3, 'numberof_locations', inv_exp_80(10)),
+            (1, 'phone', has),
+            (5, 'primary', rank(('No', 'Yes'))),
+            (8, 'rating', rank(('Cold', 'Warm', 'Hot'))),
+            (1, 'siccode', has),
+            (20, 'status', choose(LEAD_STATUS_SCORES)),
+            (1, 'title', has),
+            (1, 'website', has),
+        ])
 
 
 
@@ -582,6 +857,7 @@ class Opportunity(sf.Model):
     total_opportunity_quantity = sf.DecimalField(max_digits=18, decimal_places=2, verbose_name='Quantity', blank=True, null=True)
     tracking_number = sf.CharField(custom=True, max_length=12, blank=True, null=True)
     type = sf.CharField(max_length=40, verbose_name='Opportunity Type', choices=[('Existing Customer - Upgrade', 'Existing Customer - Upgrade'), ('Existing Customer - Replacement', 'Existing Customer - Replacement'), ('Existing Customer - Downgrade', 'Existing Customer - Downgrade'), ('New Customer', 'New Customer')], blank=True, null=True)
+    
     class Meta(sf.Model.Meta):
         db_table = 'Opportunity'
         verbose_name = 'Opportunity'
@@ -590,8 +866,28 @@ class Opportunity(sf.Model):
     
     @property
     def score(self):
-        return min(100, max(0, int(self.total_opportunity_quantity) / 25_000)) if self.total_opportunity_quantity else 0
-
+        if self.is_closed or self.is_deleted:
+            return 0
+        
+        return score(self, [
+            (5, 'amount', inv_exp_80(400_000)),
+            (30, 'close_date', combine(date_diff(future=True), exponential_20(30))),
+            (1, 'description', has),
+            (10, 'has_open_activity', expect(True)),
+            (15, 'has_overdue_task', expect(False)),
+            (20, 'last_activity_date', combine(date_diff(), inv_exp_80(20))),
+            (10, 'last_referenced_date', combine(date_diff(), inv_exp_80(30))),
+            (10, 'last_viewed_date', combine(date_diff(), inv_exp_80(14))),
+            (5, 'lead_source', choose(SOURCE_SCORES)),
+            (1, 'main_competitors', has),
+            (1, 'name', has),
+            (1, 'order_number', has),
+            (8, 'probability'),
+            (10, 'stage_name', choose(OPP_STAGE_SCORES)),
+            (1, 'tracking_number', has),
+            (5, 'type', rank(('Existing Customer - Downgrade', 'Existing Customer - Replacement', 'Existing Customer - Upgrade', 'New Customer')))
+        ])
+        
 
 
 class Calendar(sf.Model):
