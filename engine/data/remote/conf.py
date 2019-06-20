@@ -1,7 +1,12 @@
-from web.models import Account, Contact, Lead, Event
+from web.models import Account, Contact, Lead, Event, Organization
 
-BASE_FIELDS = ['owner_id']
+EXTRA_FIELDS = ['owner_id']
 ADDRESS_SUBFIELDS = ['street', 'city', 'state', 'postal_code', 'country']
+DEFAULT_SETTINGS = {
+    'extra_fields': EXTRA_FIELDS,
+    'is_global': False,
+    'is_office': False,
+}
 
 def get_address_fields(name):
     fields = []
@@ -20,10 +25,12 @@ def get_address_map(components):
 
     return m
 
-def basic_model(Model, address_fields):
+def basic_model(Model, address_fields, **kwargs):
     return {
         'model': Model,
         'components': get_address_map(address_fields),
+        **DEFAULT_SETTINGS,
+        **kwargs,
     }
 
 OBJECTS = {
@@ -36,7 +43,8 @@ OBJECTS = {
             '': ['location']
         },
         'extra_fields': ['what_id', 'who_id', 'account_id'],
-    }
+    },
+    'organization': basic_model(Organization, [''], is_global=True, is_office=True, extra_fields=[])
 }
 
 
@@ -47,5 +55,5 @@ for obj_name in OBJECTS:
     for component in obj['components']:
         address_fields += obj['components'][component]
 
-    extra_fields = obj.get('base_fields', [])
-    obj['relevant_fields'] = BASE_FIELDS + extra_fields + address_fields
+    extra_fields = obj.get('extra_fields', [])
+    obj['relevant_fields'] = address_fields + extra_fields

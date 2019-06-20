@@ -1,7 +1,7 @@
 from django.db.models import Q
-from web.models import User, Account, Contact, Lead, Opportunity, Location, Route, Event
+from web.models import User, Account, Contact, Lead, Opportunity, Organization, Location, Route, Event
 from .conf import OBJECTS
-from .util import get_locations_related_to_map, get_routes_for_location_ids, get_timezone_for
+from .util import get_locations_related_to_map, get_routes_for_location_ids, get_timezone_for, get_org_id
 from ..util import init_matrix, map_by, get_deep, find_deep, select
 from ..common import RecordSet, DataSet
 from app.util import env, lenv, boolean, clamp, DAY
@@ -14,9 +14,6 @@ import os
 
 logger = logging.getLogger(__name__)
 
-SERVICES = [
-    { 'type': 'meeting', 'time': 1 * 60 * 60, 'penalty': 1 },
-]
 BASIC_OBJECTS = ['account', 'contact', 'lead', 'opportunity']
 PENALTY = env('PENALTY', 9*60*60, int)
 DAY_START = lenv('DAY_START', '9:0:0', int, sep=':')
@@ -26,9 +23,24 @@ EVENING = dt.time(*DAY_END)
 DEFAULT_DRIVING_TIME = env('DEFAULT_DRIVING_TIME', 30*60, int)
 OVERRIDE_DRIVING_TIME = env('OVERRIDE_DRIVING_TIME', None, int)
 ENABLE_EVENTS = env('ENABLE_EVENTS', True, boolean)
+ENABLE_REMOTE_SERVICES = env('ENABLE_REMOTE_SERVICES', True, boolean)
+SERVICES = [
+    { 'type': 'meeting', 'time': 1 * 60 * 60, 'penalty': 1 },
+]
+
+if ENABLE_REMOTE_SERVICES:
+    SERVICE_CALL_PENALTY = env('SERVICE_CALL_PENALTY', 0.1, float)
+    SERVICE_EMAIL_PENALTY = env('SERVICE_EMAIL_PENALTY', 0.05, float)
+    SERVICE_CALL_TIME = env('SERVICE_CALL_TIME', 30 * 60, int)
+    SERVICE_EMAIL_TIME = env('SERVICE_EMAIL_TIME', 30 * 60, int)
+    REMOTE_SERVICES = [
+        { 'type': 'call', 'time': SERVICE_CALL_TIME, 'penalty': SERVICE_CALL_PENALTY },
+        { 'type': 'email', 'time': SERVICE_EMAIL_TIME, 'penalty': SERVICE_EMAIL_PENALTY },
+    ]
+    OFFICE_OBJECTS = ['organization']
 
 class DBDataSet(DataSet):
-    def __init__(self, user, accounts, contacts, leads, opportunities, events, date):
+    def __init__(self, user, accounts, contacts, leads, opportunities, events, orgs, date):
         self.user = user
         self.account = RecordSet(accounts)
         self.contact = RecordSet(contacts)
@@ -36,6 +48,8 @@ class DBDataSet(DataSet):
         self.opportunity = RecordSet(opportunities)
         if ENABLE_EVENTS:
             self.event = RecordSet(events)
+        if ENABLE_REMOTE_SERVICES:
+            self.organization = RecordSet(orgs)
         self.stops = []
         self.date = date
         self.day = {
@@ -49,6 +63,9 @@ class DBDataSet(DataSet):
         
         if ENABLE_EVENTS:
             self._create_existing_stops(date)
+        
+        if ENABLE_REMOTE_SERVICES:
+            self._create_remote_stops()
         
         logger.debug('All stops:')
         for i in range(len(self.stops)):
@@ -77,6 +94,9 @@ class DBDataSet(DataSet):
         
         if ENABLE_EVENTS:
             id_map['event'] = set(self.event.ids)
+        
+        if ENABLE_REMOTE_SERVICES:
+            id_map['organization'] = set(self.organization.ids)
         
         # Opportunities get their locations from related Accounts
         for opp in self.opportunity.all:
@@ -114,6 +134,8 @@ class DBDataSet(DataSet):
             record_set = getattr(self, obj_name)
             
             for record in record_set.all:
+                penalty = record.score * PENALTY / 100
+                
                 for component in components:
                     if obj_name == 'opportunity':
                         path = ('account', record.account_id, component)
@@ -122,23 +144,40 @@ class DBDataSet(DataSet):
                     
                     location = get_deep(self.location_map, path, default=None)
                     
-                    if record.last_activity_date:
-                        activity_delta = self.date - record.last_activity_date
-                        delta_days = (activity_delta).total_seconds() * DAY
-                        num_inactive_days = clamp(0, delta_days, 30)
-                    else:
-                        num_inactive_days = 30
-                        
-                    penalty = ((record.score / 100) * 0.75 + (num_inactive_days / 30) * 0.25) * PENALTY
+                    if location:
+                        for service in SERVICES:
+                            self.stops.append(BasicStop(
+                                obj_name = obj_name,
+                                record = record,
+                                service = service,
+                                location = location,
+                                penalty = int(penalty * service['penalty']),
+                            ))
+    
+    def _create_remote_stops(self):
+        for office_obj_name in OFFICE_OBJECTS:
+            office_record_set = getattr(self, office_obj_name)
+            
+            for office in office_record_set.all:
+                for component in OBJECTS[office_obj_name]['components']:
+                    location = get_deep(self.location_map, (office_obj_name, office.pk, component), default=None)
                     
-                    for service in SERVICES:
-                        self.stops.append(BasicStop(
-                            obj_name = obj_name,
-                            record = record,
-                            service = service,
-                            location = location,
-                            penalty = penalty * service['penalty'],
-                        ))
+                    if location:
+                        for obj_name in BASIC_OBJECTS:
+                            record_set = getattr(self, obj_name)
+                            
+                            for record in record_set.all:
+                                penalty = record.score * PENALTY / 100
+                                
+                                for service in REMOTE_SERVICES:
+                                    self.stops.append(BasicStop(
+                                        obj_name = obj_name,
+                                        record = record,
+                                        service = service,
+                                        location = location,
+                                        penalty = int(penalty * service['penalty']),
+                                        remote = True
+                                    ))
     
     def _create_existing_stops(self, date):
         tz = self.timezone = get_timezone_for(self.user)
@@ -251,6 +290,9 @@ class DBDataSet(DataSet):
     def is_existing(self, stop):
         return stop.is_existing()
     
+    def is_remote(self, stop):
+        return stop.is_remote()
+    
     def get_loc_id(self, stop):
         return stop.get_record()
             
@@ -265,6 +307,7 @@ class BasicStop:
         self.penalty = kwargs.get('penalty', None)
         self.time_window = kwargs.get('time_window', None)
         self.existing = kwargs.get('existing', False)
+        self.remote = kwargs.get('remote', False)
         
     def get_record(self):
         return self.record
@@ -334,6 +377,11 @@ def get_data_set_for(userId, date=dt.date.today()):
     else:
         events = []
     
+    if ENABLE_REMOTE_SERVICES:
+        orgs = Organization.objects.all()
+    else:
+        orgs = []
+    
     return DBDataSet(
         user,
         get_records_for(Account, userId),
@@ -341,6 +389,7 @@ def get_data_set_for(userId, date=dt.date.today()):
         get_records_for(Lead, userId),
         get_records_for(Opportunity, userId),
         events,
+        orgs,
         date
     )
 

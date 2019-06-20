@@ -2,7 +2,7 @@ from django.db.models import Q
 from web.models import User, Account, Contact, Lead, Event, Location, Route
 from .maps import distance_matrix
 from ..conf import OBJECTS
-from ..util import get_locations_for, get_locations_related_to_ids, get_routes_for_locations, get_record_ids, get_timezone_for
+from ..util import get_locations, get_locations_for, get_locations_related_to_ids, get_routes_for_locations, get_record_ids, get_timezone_for, get_global_locations
 from ...util import map_by, group_by, get_all_groups, static
 from functools import partial
 import datetime
@@ -176,7 +176,7 @@ def init_locations(obj_name, ids, create_or_update_location, *cb_extras):
     
     # For each Address compound field of each record...
     for record in records:
-        userId = record.owner_id
+        userId = record.owner_id if not obj['is_global'] else None
 
         if not userId in user_ids:
             user_ids.add(userId)
@@ -214,12 +214,20 @@ def init_locations(obj_name, ids, create_or_update_location, *cb_extras):
     }
     return locations, records, user_ids
 
+def exclude(queryset, locations):
+    return queryset.exclude(pk__in=get_record_ids(locations))
 
+def get_other_locations_for(userId, locations):
+    return exclude(get_locations_for(userId), locations)
 
 def get_other_locations(userId, locations):
-    return get_locations_for(userId).exclude(
-            pk__in=get_record_ids(locations)
-        )
+    if userId:
+        return get_global_locations() + get_other_locations_for(userId, locations)
+    else:
+        # the target object is a global
+        # we need to recalculate routes between this location and *all* others
+        return exclude(get_locations(), locations)
+        
 
 def create_location_map(locations):
     m = dict()
@@ -264,6 +272,9 @@ def get_ctxs_for(obj_name, records):
         users = User.objects.filter(pk__in=user_ids)
         user_map = map_by(users, ('pk',))
         return get_all_groups(records, ('owner_id', partial(get_event_dates, user_map)))
+    elif OBJECTS[obj_name]['is_global']:
+        users = User.objects.all()
+        return [(user.pk, datetime.date.today()) for user in users]
     else:
         return get_all_groups(records, ('owner_id', static(datetime.date.today())))
 
@@ -276,7 +287,8 @@ def get_event_dates(user_map, event):
     )
 
 def upsert_location(record, component, existing_locations, obj_name):
-    address = get_address(record, component, OBJECTS[obj_name])
+    obj = OBJECTS[obj_name]
+    address = get_address(record, component, obj)
     
     if (component, record.pk) in existing_locations:
         location = existing_locations[(component, record.pk)]
@@ -293,6 +305,7 @@ def upsert_location(record, component, existing_locations, obj_name):
             related_to=obj_name,
             related_to_component=component,
             related_to_id=record.pk,
-            owner_id=record.owner_id,
+            owner_id=record.owner_id if not obj['is_global'] else None,
+            is_office=obj['is_office'],
             is_valid=True  # Set to True for now, we'll correct this after a sanity check and geocoding
         ), True
