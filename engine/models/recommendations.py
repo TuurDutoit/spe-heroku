@@ -33,8 +33,10 @@ def get_recommendations_for(ctx):
     solution = tsp.run()
     
     tz = get_timezone_for(data.user)
-    day_start = data.day['start'].astimezone(tz).astimezone(dt.timezone.utc)
+    day_start = tz.localize(data.day['start']).astimezone(dt.timezone.utc)
     recs = []
+    
+    logger.debug('Day start: %s', day_start)
     
     logger.debug(solution)
     
@@ -46,6 +48,9 @@ def get_recommendations_for(ctx):
                 service_time = leg.stop.get_service_time()
                 start = day_start + dt.timedelta(seconds=leg.arrival[0])
                 end = start + dt.timedelta(seconds=service_time)
+                
+                logger.debug('Start: %s', start)
+                logger.debug('End: %s', end)
                 
                 rec = Recommendation(
                     score = record.score,

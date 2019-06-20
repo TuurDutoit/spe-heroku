@@ -199,9 +199,6 @@ def combine(*processors):
 def score(record, props):
     factor_sum = sum(map(itemgetter(0), props))
     
-    if factor_sum != 100:
-        logger.warning('Sum of factors is not 100: %s', factor_sum)
-    
     return int(sum(map(
         lambda prop: subscore(record, *prop[1:]) * prop[0],
         props
