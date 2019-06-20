@@ -1036,19 +1036,11 @@ WHAT_TYPES = [
     ('lead', 'Lead'),
     ('contact', 'Contact')
 ]
-
-class Recommendation(models.Model):
-    score = models.FloatField()
-    reason1 = models.CharField(max_length=50)
-    reason2 = models.CharField(max_length=50)
-    reason3 = models.CharField(max_length=50)
-    what_type = models.CharField(choices=WHAT_TYPES, max_length=11)
-    what_id = models.CharField(max_length=18)
-    owner_id = models.CharField(max_length=18)
-    
-    class Meta:
-        verbose_name = 'Recommendation'
-        verbose_name_plural = 'Recommendations'
+SERVICE_TYPES = [
+    ('meeting', 'Meeting'),
+    ('call', 'Call'),
+    ('email', 'Email'),
+]
 
 
 class Location(models.Model):
@@ -1059,11 +1051,29 @@ class Location(models.Model):
     related_to_id = models.CharField(max_length=18)
     related_to_component = models.CharField(max_length=20, null=True)
     owner_id = models.CharField(max_length=18, null=True, blank=True)
-    
+
     class Meta:
         unique_together = [
             ('related_to', 'related_to_component', 'related_to_id')
         ]
+
+class Recommendation(models.Model):
+    score = models.FloatField()
+    reason1 = models.CharField(max_length=50)
+    reason2 = models.CharField(max_length=50)
+    reason3 = models.CharField(max_length=50)
+    service_type = models.CharField(choices=SERVICE_TYPES, max_length=10)
+    service_time = models.IntegerField()
+    start_date_time = models.DateTimeField()
+    end_date_time = models.DateTimeField()
+    location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    what_type = models.CharField(choices=WHAT_TYPES, max_length=11)
+    what_id = models.CharField(max_length=18)
+    owner_id = models.CharField(max_length=18)
+    
+    class Meta:
+        verbose_name = 'Recommendation'
+        verbose_name_plural = 'Recommendations'
     
 
 

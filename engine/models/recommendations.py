@@ -1,9 +1,11 @@
 from django.db import transaction
 from engine.data import get_data_set_for, remove_recommendations_for, insert_recommendations
 from engine.data.util import matrix_str
+from engine.data.remote.util import get_timezone_for
 from web.models import Recommendation, Account
 from .tsp import TravellingSalesman, create_context
 from app.util import env, boolean
+import datetime as dt
 import logging
 
 
@@ -29,6 +31,9 @@ def get_recommendations_for(ctx):
     context = create_context(data)
     tsp = TravellingSalesman(context)
     solution = tsp.run()
+    
+    tz = get_timezone_for(data.user)
+    day_start = data.day['start'].astimezone(tz).astimezone(dt.timezone.utc)
     recs = []
     
     logger.debug(solution)
@@ -37,13 +42,22 @@ def get_recommendations_for(ctx):
         for leg in solution.legs:
             obj_name = leg.stop.obj_name
             if obj_name in ENABLE and ENABLE[obj_name]:
-                record = leg.stop.record
+                record = leg.stop.get_record()
+                service_time = leg.stop.get_service_time()
+                start = day_start + dt.timedelta(seconds=leg.arrival[0])
+                end = start + dt.timedelta(seconds=service_time)
+                
                 rec = Recommendation(
                     score = record.score,
                     reason1 = 'This %s looks promising' % obj_name,
+                    service_type = leg.stop.get_service_type(),
+                    service_time = service_time,
+                    start_date_time = start,
+                    end_date_time = end,
+                    location_id = leg.stop.get_location().pk,
                     what_type = obj_name,
                     what_id = record.pk,
-                    owner_id = record.owner_id
+                    owner_id = ctx[0],
                 )
                 
                 recs.append(rec)

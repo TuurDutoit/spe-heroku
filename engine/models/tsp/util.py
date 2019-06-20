@@ -7,10 +7,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-MIN = 60
-HOUR = 60 * MIN
-DAY = 24 * HOUR
-
 TIMEOUT = env('TIMEOUT', 10, int)
 MAX_SLACK = env('MAX_SLACK', None, int)
 SOLUTION_LIMIT = env('SOLUTION_LIMIT', None, int)
