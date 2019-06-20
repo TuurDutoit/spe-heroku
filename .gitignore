@@ -6,3 +6,4 @@ staticfiles
 db.sqlite3
 getting-started/*
 .vscode
+.sfdx
