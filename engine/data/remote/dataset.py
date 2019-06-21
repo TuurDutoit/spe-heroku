@@ -4,7 +4,7 @@ from .conf import OBJECTS
 from .util import get_locations_related_to_map, get_routes_for_location_ids, get_timezone_for, get_org_id
 from ..util import init_matrix, map_by, get_deep, find_deep, select
 from ..common import RecordSet, DataSet
-from app.util import env, lenv, boolean, clamp, DAY
+from app.util import env, lenv, boolean, clamp, DAY, get_default_date
 from pytz import timezone
 from operator import attrgetter
 import random
@@ -14,7 +14,6 @@ import os
 
 logger = logging.getLogger(__name__)
 
-BASIC_OBJECTS = ['account', 'contact', 'lead', 'opportunity']
 PENALTY = env('PENALTY', 9*60*60, int)
 DAY_START = lenv('DAY_START', '9:0:0', int, sep=':')
 DAY_END = lenv('DAY_END', '18:0:0', int, sep=':')
@@ -37,7 +36,6 @@ if ENABLE_REMOTE_SERVICES:
         { 'type': 'call', 'time': SERVICE_CALL_TIME, 'penalty': SERVICE_CALL_PENALTY },
         { 'type': 'email', 'time': SERVICE_EMAIL_TIME, 'penalty': SERVICE_EMAIL_PENALTY },
     ]
-    OFFICE_OBJECTS = ['organization']
 
 class DBDataSet(DataSet):
     def __init__(self, user, accounts, contacts, leads, opportunities, events, orgs, date):
@@ -128,20 +126,20 @@ class DBDataSet(DataSet):
         self.route_map = map_by(routes, ('start_id', 'end_id'))
     
     def _create_basic_stops(self):
-        for obj_name in BASIC_OBJECTS:
-            components_src = 'account' if obj_name == 'opportunity' else obj_name
-            components = OBJECTS[components_src]['components']
+        for obj_name in OBJECTS:
+            obj = OBJECTS[obj_name]
+            if obj['is_fixed'] or obj['is_office']:
+                continue
+                
+            locations_src = obj['parent'] or obj_name
+            components = OBJECTS[locations_src]['components']
             record_set = getattr(self, obj_name)
             
             for record in record_set.all:
                 penalty = record.score * PENALTY / 100
                 
                 for component in components:
-                    if obj_name == 'opportunity':
-                        path = ('account', record.account_id, component)
-                    else:
-                        path = (obj_name, record.pk, component)
-                    
+                    path = (locations_src, getattr(record, obj['loc_id_field']), component)
                     location = get_deep(self.location_map, path, default=None)
                     
                     if location:
@@ -155,7 +153,9 @@ class DBDataSet(DataSet):
                             ))
     
     def _create_remote_stops(self):
-        for office_obj_name in OFFICE_OBJECTS:
+        for office_obj_name in OBJECTS:
+            if not OBJECTS[office_obj_name]['is_office']:
+                continue
             office_record_set = getattr(self, office_obj_name)
             
             for office in office_record_set.all:
@@ -163,7 +163,9 @@ class DBDataSet(DataSet):
                     location = get_deep(self.location_map, (office_obj_name, office.pk, component), default=None)
                     
                     if location:
-                        for obj_name in BASIC_OBJECTS:
+                        for obj_name in OBJECTS:
+                            if OBJECTS[obj_name]['is_office'] or OBJECTS[obj_name]['is_fixed']:
+                                continue
                             record_set = getattr(self, obj_name)
                             
                             for record in record_set.all:
@@ -362,8 +364,11 @@ def get_morning(date, tz):
 def get_evening(date, tz):
     return to_utc(dt.datetime.combine(date, EVENING), tz)
 
-def get_data_set_for(userId, date=dt.date.today()):
+def get_data_set_for(userId, date=None):
     user = User.objects.get(pk=userId)
+    
+    if not date:
+        date = get_default_date()
     
     if ENABLE_EVENTS:
         tz = get_timezone_for(user)

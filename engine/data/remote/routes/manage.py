@@ -4,14 +4,12 @@ from .maps import distance_matrix
 from ..conf import OBJECTS
 from ..util import get_locations, get_locations_for, get_locations_related_to_ids, get_routes_for_locations, get_record_ids, get_timezone_for, get_global_locations
 from ...util import map_by, group_by, get_all_groups, static
+from app.util import get_default_date
 from functools import partial
 import datetime
 import logging
 
 logger = logging.getLogger(__name__)
-
-# Objects that don't have related Locations, but do trigger recommendations
-OTHER_OBJECTS = ['opportunity']
 
 
 def refresh_routes(obj_name, ids, action):
@@ -19,9 +17,10 @@ def refresh_routes(obj_name, ids, action):
         return action_delete(obj_name, ids)
     elif action == 'insert' or action == 'update':
         if obj_name in OBJECTS:
-            return action_upsert(obj_name, ids)
-        elif obj_name in OTHER_OBJECTS:
-            return action_upsert_other(obj_name, ids)
+            if not OBJECTS[obj_name]['parent']:
+                return action_upsert(obj_name, ids)
+            else:
+                return action_upsert_other(obj_name, ids)
         else:
             logger.warning('Unsupported object: ' + obj_name)
             return []
@@ -222,7 +221,7 @@ def get_other_locations_for(userId, locations):
 
 def get_other_locations(userId, locations):
     if userId:
-        return get_global_locations() + get_other_locations_for(userId, locations)
+        return list(get_global_locations()) + list(get_other_locations_for(userId, locations))
     else:
         # the target object is a global
         # we need to recalculate routes between this location and *all* others
@@ -274,9 +273,10 @@ def get_ctxs_for(obj_name, records):
         return get_all_groups(records, ('owner_id', partial(get_event_dates, user_map)))
     elif OBJECTS[obj_name]['is_global']:
         users = User.objects.all()
-        return [(user.pk, datetime.date.today()) for user in users]
+        date = get_default_date()
+        return [(user.pk, date) for user in users]
     else:
-        return get_all_groups(records, ('owner_id', static(datetime.date.today())))
+        return get_all_groups(records, ('owner_id', static(get_default_date())))
 
 def get_event_dates(user_map, event):
     user = user_map[event.owner_id]

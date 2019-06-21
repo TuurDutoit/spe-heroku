@@ -8,3 +8,4 @@ dj-database-url
 django-salesforce
 ortools
 googlemaps
+humanize

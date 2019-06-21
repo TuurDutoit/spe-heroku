@@ -1,3 +1,4 @@
+import datetime as dt
 import os
 
 MINUTE = 60
@@ -40,3 +41,6 @@ def coalesce(*values):
 
 def clamp(mn, val, mx):
     return max(mn, min(mx, val))
+
+def get_default_date():
+    return dt.date.today() + dt.timedelta(days=1)

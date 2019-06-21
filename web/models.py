@@ -198,11 +198,18 @@ def combine(*processors):
 
 def score(record, props):
     factor_sum = sum(map(itemgetter(0), props))
+    prop_scores = sorted(
+        map(
+            lambda prop: (prop[1], subscore(record, *prop[1:]) * prop[0]),
+            props
+        ),
+        key=itemgetter(1),
+        reverse=True
+    )
+    subscores = map(itemgetter(1), prop_scores)
+    record.best_attrs = map(itemgetter(0), prop_scores)
     
-    return int(sum(map(
-        lambda prop: subscore(record, *prop[1:]) * prop[0],
-        props
-    )) / factor_sum)
+    return int(sum(subscores) / factor_sum)
 
 def subscore(record, propname, processor=passthrough):
     val = getattr(record, propname)

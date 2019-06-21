@@ -44,7 +44,7 @@ def get_locations_for(userId):
     return Location.objects.filter(owner_id=userId, is_valid=True)
 
 def get_global_locations():
-    return Location.objects.filter(owner__isnull=True)
+    return Location.objects.filter(owner_id__isnull=True)
 
 def get_routes_for_locations(locations):
     return get_routes_for_location_ids(get_record_ids(locations))

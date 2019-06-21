@@ -1,11 +1,15 @@
-from web.models import Account, Contact, Lead, Event, Organization
+from web.models import Account, Contact, Lead, Opportunity, Event, Organization
 
 EXTRA_FIELDS = ['owner_id']
 ADDRESS_SUBFIELDS = ['street', 'city', 'state', 'postal_code', 'country']
 DEFAULT_SETTINGS = {
     'extra_fields': EXTRA_FIELDS,
-    'is_global': False,
-    'is_office': False,
+    'currency_fields': [],
+    'is_global': False, # Global records don't have a specific owner -> routes to/from everywhere are calculated
+    'is_office': False, # Whether these records can be used as offices for remote stops
+    'is_fixed': False, # Whether these records are existing fixed events
+    'parent': None, # The name of the parent object, if any. Locations will be taken from that object instead
+    'loc_id_field': 'pk' # The name of the field that is referenced by Location#related_to_id
 }
 
 def get_address_fields(name):
@@ -34,15 +38,18 @@ def basic_model(Model, address_fields, **kwargs):
     }
 
 OBJECTS = {
-    'account': basic_model(Account, ['billing', 'shipping']),
+    'account': basic_model(Account, ['billing', 'shipping'], currency_fields=['annual_revenue']),
     'contact': basic_model(Contact, ['mailing', 'other']),
-    'lead': basic_model(Lead, ['']),
+    'lead': basic_model(Lead, [''], currency_fields=['annual_revenue']),
+    'opportunity': basic_model(Opportunity, [], has_locations=False, currency_fields=['amount', 'expected_revenue']),
     'event': {
+        **DEFAULT_SETTINGS,
         'model': Event,
         'components': {
             '': ['location']
         },
         'extra_fields': ['what_id', 'who_id', 'account_id'],
+        'is_fixed': True,
     },
     'organization': basic_model(Organization, [''], is_global=True, is_office=True, extra_fields=[])
 }

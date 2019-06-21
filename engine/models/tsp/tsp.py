@@ -134,7 +134,7 @@ class Solution:
             if not leg.is_depot:
                 self.legs.append(leg)
         
-        self.time = self.legs[-1].finish[0]
+        self.time = self.legs[-1].finish[0] if len(self.legs) > 0 else 0
         self.stops = [leg.stop for leg in self.legs]
     
     @property
