@@ -17,7 +17,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-DEFAULT=25
+DEFAULT=0
 NO_DEFAULT=object()
 UNITS = {
     'seconds': 1,
@@ -150,7 +150,7 @@ def choose(score_map, default=DEFAULT):
     
     return calc_choose
 
-def rank(values, default=NO_DEFAULT):
+def rank(values, default=DEFAULT):
     score_per = 100 / (len(values) - 1)
     
     if default == NO_DEFAULT:
@@ -194,7 +194,7 @@ def combine(*processors):
         
         return val
     
-    return calc_combine
+    return with_default(calc_combine)
 
 def score(record, props):
     factor_sum = sum(map(itemgetter(0), props))
@@ -601,28 +601,28 @@ class Account(sf.Model):
             return 0
         
         return score(self, [
-            (1, 'account_number', has),
+            #(1, 'account_number', has),
             (1, 'account_source', choose(SOURCE_SCORES)),
             (5, 'annual_revenue', inv_exp(239000000)),
             (10, 'customer_priority', rank(('Low', 'Medium', 'High'))),
-            (1, 'description', has),
-            (1, 'duns_number', has),
+            #(1, 'description', has),
+            #(1, 'duns_number', has),
             (3, 'industry', choose(INDUSTRY_SCORES)),
             (10, 'last_activity_date', combine(date_diff(), inv_exp_80(20))),
             (5, 'last_referenced_date', combine(date_diff(), inv_exp_80(30))),
             (5, 'last_viewed_date', combine(date_diff(), inv_exp_80(14))),
-            (1, 'naics_code', has),
+            #(1, 'naics_code', has),
             (4, 'number_of_employees', inv_exp_80(200)),
             (4, 'numberof_locations', inv_exp_80(10)),
-            (1, 'phone', has),
+            #(1, 'phone', has),
             (10, 'rating', rank(('Cold', 'Warm', 'Hot'))),
-            (1, 'sic', has),
+            #(1, 'sic', has),
             (5, 'sla', rank(('Bronze', 'Platinum', 'Silver', 'Gold'))),
             (10, 'slaexpiration_date', combine(date_diff(future=True), exponential_20(20))),
             (10, 'type', choose(ACCOUNT_TYPE_SCORES)),
             (10, 'upsell_opportunity', rank(('No', 'Maybe', 'Yes'))),
-            (1, 'website', has),
-            (1, 'year_started', has),
+            #(1, 'website', has),
+            #(1, 'year_started', has),
         ])
 
 
@@ -700,22 +700,22 @@ class Contact(sf.Model):
             return False
         
         return score(self, [
-            (3, 'assistant_name', has),
-            (3, 'assistant_phone', has),
-            (3, 'department', has),
-            (3, 'description', has),
-            (3, 'email', has),
+            #(3, 'assistant_name', has),
+            #(3, 'assistant_phone', has),
+            #(3, 'department', has),
+            #(3, 'description', has),
+            #(3, 'email', has),
             (20, 'email_bounced_date', combine(date_diff(), exponential_20(7))),
-            (3, 'first_name', has),
+            #(3, 'first_name', has),
             (15, 'last_activity_date', combine(date_diff(), inv_exp_80(20))),
-            (3, 'last_name', has),
+            #(3, 'last_name', has),
             (10, 'last_referenced_date', combine(date_diff(), inv_exp_80(30))),
             (10, 'last_viewed_date', combine(date_diff(), inv_exp_80(14))),
             (5, 'lead_source', choose(SOURCE_SCORES)),
             (10, 'level', rank(('Tertiary', 'Secondary', 'Primary'))),
-            (3, 'mobile_phone', has),
-            (3, 'phone', has),
-            (3, 'title', has),
+            #(3, 'mobile_phone', has),
+            #(3, 'phone', has),
+            #(3, 'title', has),
         ])
 
 
@@ -791,31 +791,31 @@ class Lead(sf.Model):
             return 0
         
         return score(self, [
-            (1, 'address', has),
+            #(1, 'address', has),
             (5, 'annual_revenue', inv_exp(239000000)),
-            (1, 'company', has),
-            (1, 'company_duns_number', has),
-            (1, 'dandb_company', has),
-            (1, 'description', has),
-            (1, 'email', has),
+            #(1, 'company', has),
+            #(1, 'company_duns_number', has),
+            #(1, 'dandb_company', has),
+            #(1, 'description', has),
+            #(1, 'email', has),
             (20, 'email_bounced_date', combine(date_diff(), exponential_20(7))),
-            (1, 'first_name', has),
+            #(1, 'first_name', has),
             (5, 'industry', choose(INDUSTRY_SCORES)),
             (15, 'last_activity_date', combine(date_diff(), inv_exp_80(20))),
-            (1, 'last_name', has),
+            #(1, 'last_name', has),
             (10, 'last_referenced_date', combine(date_diff(), inv_exp_80(30))),
             (10, 'last_viewed_date', combine(date_diff(), inv_exp_80(14))),
             (5, 'lead_source', choose(SOURCE_SCORES)),
-            (1, 'mobile_phone', has),
+            #(1, 'mobile_phone', has),
             (3, 'number_of_employees', inv_exp_80(200)),
             (3, 'numberof_locations', inv_exp_80(10)),
-            (1, 'phone', has),
+            #(1, 'phone', has),
             (5, 'primary', rank(('No', 'Yes'))),
             (8, 'rating', rank(('Cold', 'Warm', 'Hot'))),
-            (1, 'siccode', has),
+            #(1, 'siccode', has),
             (20, 'status', choose(LEAD_STATUS_SCORES)),
-            (1, 'title', has),
-            (1, 'website', has),
+            #(1, 'title', has),
+            #(1, 'website', has),
         ])
 
 
@@ -876,19 +876,19 @@ class Opportunity(sf.Model):
         return score(self, [
             (5, 'amount', inv_exp_80(400_000)),
             (30, 'close_date', combine(date_diff(future=True), exponential_20(30))),
-            (1, 'description', has),
-            (10, 'has_open_activity', expect(True)),
-            (15, 'has_overdue_task', expect(False)),
+            #(1, 'description', has),
+            (10, 'has_open_activity', expect()),
+            (15, 'has_overdue_task', expect()),
             (20, 'last_activity_date', combine(date_diff(), inv_exp_80(20))),
             (10, 'last_referenced_date', combine(date_diff(), inv_exp_80(30))),
             (10, 'last_viewed_date', combine(date_diff(), inv_exp_80(14))),
             (5, 'lead_source', choose(SOURCE_SCORES)),
-            (1, 'main_competitors', has),
-            (1, 'name', has),
-            (1, 'order_number', has),
+            #(1, 'main_competitors', has),
+            #(1, 'name', has),
+            #(1, 'order_number', has),
             (8, 'probability'),
             (10, 'stage_name', choose(OPP_STAGE_SCORES)),
-            (1, 'tracking_number', has),
+            #(1, 'tracking_number', has),
             (5, 'type', rank(('Existing Customer - Downgrade', 'Existing Customer - Replacement', 'Existing Customer - Upgrade', 'New Customer')))
         ])
         
@@ -1063,9 +1063,9 @@ class Location(models.Model):
 
 class Recommendation(models.Model):
     score = models.FloatField()
-    reason1 = models.CharField(max_length=50)
-    reason2 = models.CharField(max_length=50)
-    reason3 = models.CharField(max_length=50)
+    reason1 = models.CharField(max_length=60)
+    reason2 = models.CharField(max_length=60)
+    reason3 = models.CharField(max_length=60)
     service_type = models.CharField(choices=SERVICE_TYPES, max_length=10)
     service_time = models.IntegerField()
     start_date_time = models.DateTimeField()

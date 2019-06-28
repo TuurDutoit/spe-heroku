@@ -21,8 +21,8 @@ def handle_change(change):
     else:
         return []
 
-def remove_recommendations_for(userId):
-    Recommendation.objects.filter(owner_id=userId).delete()
+def remove_recommendations(ctx):
+    Recommendation.objects.filter(owner_id=ctx[0], start_date_time__date=ctx[1]).delete()
 
 def insert_recommendations(recs):
     Recommendation.objects.bulk_create(recs)

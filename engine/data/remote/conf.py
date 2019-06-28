@@ -64,3 +64,9 @@ for obj_name in OBJECTS:
 
     extra_fields = obj.get('extra_fields', [])
     obj['relevant_fields'] = address_fields + extra_fields
+
+    if not 'name' in obj:
+        obj['name'] = obj['model']._meta.model_name
+    
+    if not 'label' in obj:
+        obj['label'] = obj['model']._meta.verbose_name
