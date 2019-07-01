@@ -180,7 +180,7 @@ format_choice_safe = safe(format_choice)
 
 def format_bool(fmt):
     def formatter(value, field, obj):
-        return fmt.format(no=('no' if not value else '__NO__').replace(' __NO__', ''))
+        return fmt.format(no=('no' if not value else '__NO__')).replace(' __NO__', '')
     
     return formatter
 
