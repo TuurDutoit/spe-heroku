@@ -17,7 +17,7 @@ def refresh_routes(obj_name, ids, action):
         return action_delete(obj_name, ids)
     elif action == 'insert' or action == 'update':
         if obj_name in OBJECTS:
-            if not OBJECTS[obj_name]['parent']:
+            if OBJECTS[obj_name]['has_locations']:
                 return action_upsert(obj_name, ids)
             else:
                 return action_upsert_other(obj_name, ids)

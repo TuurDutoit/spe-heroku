@@ -5,10 +5,13 @@ ADDRESS_SUBFIELDS = ['street', 'city', 'state', 'postal_code', 'country']
 DEFAULT_SETTINGS = {
     'extra_fields': EXTRA_FIELDS,
     'currency_fields': [],
+    'phone_fields': [],
+    'email_fields': [],
     'is_global': False, # Global records don't have a specific owner -> routes to/from everywhere are calculated
     'is_office': False, # Whether these records can be used as offices for remote stops
     'is_fixed': False, # Whether these records are existing fixed events
     'parent': None, # The name of the parent object, if any. Locations will be taken from that object instead
+    'related_fields': None, # ForeignKey fields that should be populated in a DataSet
     'loc_id_field': 'pk' # The name of the field that is referenced by Location#related_to_id
 }
 
@@ -38,10 +41,35 @@ def basic_model(Model, address_fields, **kwargs):
     }
 
 OBJECTS = {
-    'account': basic_model(Account, ['billing', 'shipping'], currency_fields=['annual_revenue']),
-    'contact': basic_model(Contact, ['mailing', 'other']),
-    'lead': basic_model(Lead, [''], currency_fields=['annual_revenue']),
-    'opportunity': basic_model(Opportunity, [], has_locations=False, currency_fields=['amount', 'expected_revenue']),
+    'account': basic_model(
+        Account,
+        ['billing', 'shipping'],
+        currency_fields=['annual_revenue'],
+        phone_fields=['phone'],
+    ),
+    'contact': basic_model(
+        Contact,
+        ['mailing', 'other'],
+        phone_fields=['assistant_phone', 'home_phone', 'mobile_phone', 'phone'],
+        email_fields=['email'],
+    ),
+    'lead': basic_model(
+        Lead,
+        [''],
+        currency_fields=['annual_revenue'],
+        phone_fields=['mobile_phone', 'phone'],
+        email_fields=['email'],
+    ),
+    'opportunity': basic_model(
+        Opportunity,
+        [],
+        has_locations=False,
+        currency_fields=['amount', 'expected_revenue'],
+        parent='account',
+        loc_id_field='account_id',
+        related_fields=['account'],
+        phone_fields=['account.phone'],
+    ),
     'event': {
         **DEFAULT_SETTINGS,
         'model': Event,
@@ -51,7 +79,13 @@ OBJECTS = {
         'extra_fields': ['what_id', 'who_id', 'account_id'],
         'is_fixed': True,
     },
-    'organization': basic_model(Organization, [''], is_global=True, is_office=True, extra_fields=[])
+    'organization': basic_model(
+        Organization,
+        [''],
+        is_global=True,
+        is_office=True,
+        extra_fields=[],
+    )
 }
 
 

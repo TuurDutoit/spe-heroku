@@ -7,6 +7,7 @@ from ..common import RecordSet, DataSet
 from app.util import env, lenv, boolean, clamp, DAY, get_default_date
 from pytz import timezone
 from operator import attrgetter
+from functools import partial
 import random
 import datetime as dt
 import logging
@@ -33,8 +34,8 @@ if ENABLE_REMOTE_SERVICES:
     SERVICE_CALL_TIME = env('SERVICE_CALL_TIME', 30 * 60, int)
     SERVICE_EMAIL_TIME = env('SERVICE_EMAIL_TIME', 30 * 60, int)
     REMOTE_SERVICES = [
-        { 'type': 'call', 'time': SERVICE_CALL_TIME, 'penalty': SERVICE_CALL_PENALTY },
-        { 'type': 'email', 'time': SERVICE_EMAIL_TIME, 'penalty': SERVICE_EMAIL_PENALTY },
+        { 'type': 'call', 'time': SERVICE_CALL_TIME, 'penalty': SERVICE_CALL_PENALTY, 'fields': 'phone_fields' },
+        { 'type': 'email', 'time': SERVICE_EMAIL_TIME, 'penalty': SERVICE_EMAIL_PENALTY, 'fields': 'email_fields' },
     ]
 
 class DBDataSet(DataSet):
@@ -69,13 +70,14 @@ class DBDataSet(DataSet):
         for i in range(len(self.stops)):
             stop = self.stops[i]
             logger.debug(
-                '%d. %s: %s/%s/%d/%d/%d/%d/%s' % (
+                '%d. %s: %s/%s/%d/%d/%s/%d/%d/%s' % (
                     i + 1,
                     stop.obj_name,
                     stop.record.pk,
                     stop.location.related_to_component if stop.location else '<empty>',
                     stop.record.score if hasattr(stop.record, 'score') else -1,
                     stop.penalty if stop.penalty != None else -1,
+                    stop.service_type,
                     stop.service_time,
                     stop.time_window[0] if stop.time_window else -1,
                     stop.remote
@@ -141,6 +143,9 @@ class DBDataSet(DataSet):
                 for component in components:
                     path = (locations_src, getattr(record, obj['loc_id_field']), component)
                     location = get_deep(self.location_map, path, default=None)
+
+                    if obj_name == 'opportunity':
+                        logger.debug('Path: %s, location: %s', path, location)
                     
                     if location:
                         for service in SERVICES:
@@ -164,7 +169,8 @@ class DBDataSet(DataSet):
                     
                     if location:
                         for obj_name in OBJECTS:
-                            if OBJECTS[obj_name]['is_office'] or OBJECTS[obj_name]['is_fixed']:
+                            obj = OBJECTS[obj_name]
+                            if obj['is_office'] or obj['is_fixed']:
                                 continue
                             record_set = getattr(self, obj_name)
                             
@@ -172,14 +178,16 @@ class DBDataSet(DataSet):
                                 penalty = record.score * PENALTY / 100
                                 
                                 for service in REMOTE_SERVICES:
-                                    self.stops.append(BasicStop(
-                                        obj_name = obj_name,
-                                        record = record,
-                                        service = service,
-                                        location = location,
-                                        penalty = int(penalty * service['penalty']),
-                                        remote = True
-                                    ))
+                                    field_names = obj[service['fields']]
+                                    if any(map(partial(has_field, record), field_names)):
+                                        self.stops.append(BasicStop(
+                                            obj_name = obj_name,
+                                            record = record,
+                                            service = service,
+                                            location = location,
+                                            penalty = int(penalty * service['penalty']),
+                                            remote = True
+                                        ))
     
     def _create_existing_stops(self, date):
         tz = self.timezone = get_timezone_for(self.user)
@@ -374,7 +382,7 @@ def get_data_set_for(userId, date=None):
         tz = get_timezone_for(user)
         start = get_evening(date, tz)
         end = get_morning(date, tz)
-        events = get_records_for(Event, userId,
+        events = get_records_for('event', userId,
             start_date_time__lte=start,
             end_date_time__gte=end,
             is_all_day_event=False
@@ -389,10 +397,10 @@ def get_data_set_for(userId, date=None):
     
     return DBDataSet(
         user,
-        get_records_for(Account, userId),
-        get_records_for(Contact, userId),
-        get_records_for(Lead, userId),
-        get_records_for(Opportunity, userId),
+        get_records_for('account', userId),
+        get_records_for('contact', userId),
+        get_records_for('lead', userId),
+        get_records_for('opportunity', userId),
         events,
         orgs,
         date
@@ -401,5 +409,22 @@ def get_data_set_for(userId, date=None):
 def get_data_sets_for(ctxs):
     return [get_data_set_for(*ctx) for ctx in ctxs]
 
-def get_records_for(Model, userId, **filters):
-    return Model.objects.filter(owner_id=userId, **filters)
+def get_records_for(obj_name, userId, **filters):
+    obj = OBJECTS[obj_name]
+    Model = obj['model']
+    query = Model.objects.filter(owner_id=userId, **filters)
+
+    if 'related_fields' in obj and obj['related_fields']:
+        query = query.select_related(*obj['related_fields'])
+    
+    return query
+
+def has_field(record, name):
+    for part in name.split('.'):
+        if hasattr(record, part):
+            record = getattr(record, part)
+        
+        if not record:
+            return False
+    
+    return True
