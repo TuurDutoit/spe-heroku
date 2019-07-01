@@ -5,7 +5,7 @@ gunicorn
 django-heroku
 psycopg2-binary
 dj-database-url
-django-salesforce
+django-salesforce==0.8.1
 ortools
 googlemaps
 humanize
