@@ -7,6 +7,7 @@ DEFAULT_SETTINGS = {
     'currency_fields': [],
     'phone_fields': [],
     'email_fields': [],
+    'has_locations': True,
     'is_global': False, # Global records don't have a specific owner -> routes to/from everywhere are calculated
     'is_office': False, # Whether these records can be used as offices for remote stops
     'is_fixed': False, # Whether these records are existing fixed events
