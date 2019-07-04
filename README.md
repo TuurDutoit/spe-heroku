@@ -16,6 +16,15 @@ Before you begin, make sure you have all the necessary tools installed on your m
 
 Also, make sure you have access to the `spe-heroku` and `spe-salesforce` repos on GitHub.
 
+### Clone repos
+Clone the `spe-heroku` and `spe-salesforce` repos to your machine (and `cd` into the Heroku project):
+
+```sh
+$ git clone git@github.com:TuurDutoit/spe-heroku.git
+$ git clone git@github.com:TuurDutoit/spe-salesforce.git
+$ cd spe-heroku
+```
+
 ### Create Heroku app
 Create a new app on Heroku via the CLI:
 
@@ -23,7 +32,12 @@ Create a new app on Heroku via the CLI:
 $ heroku create
 ```
 
-Don't push anything to it yet, just note down the URL (usually in the form `https://xxx-xxx-12345.herokuapp.com`).
+Don't push anything to it yet, just note down the URL (usually in the form `https://xxx-xxx-12345.herokuapp.com`).  
+This should have added a remote to the git repo called `heroku`. This is very useful because that means the Heroku CLI can find the name of your app automatically (if it's invoked from this directory), which means you don't have to pass the `-a <app name>` flag every time. If this doesn't work for some reason, you can use the following command to fix this (run this from within the `spe-heroku` project folder):
+
+```sh
+$ heroku git:remote -a <app name>
+```
 
 ### Provision add-ons (Heroku)
 Provision the (free) [Postgres add-on](https://elements.heroku.com/addons/heroku-postgresql) via the CLI:
@@ -95,31 +109,14 @@ From the [Heroku dashboard](https://dashboard.heroku.com), open your newly creat
 Normally, the `DATABASE_URL` variable should be populated already (this happened when you provisioned the Postgres add-on). For `SECRET_KEY`, generate a random string. For `SF_CONSUMER_KEY` and `SF_CONSUMER_SECRET`, fill in the consumer key and client secret of the Connected App you created earlier. For `SF_USERNAME`, `SF_PASSWORD` and `SF_SECURITY_TOKEN`, fill in the credentials of the user you just created. Fill in the Google Maps API key.  
 You can adjust lots of different parameters and features with environment variables. Because there are way too many to document here, just take a look at the code.
 
-### Django setup (Heroku)
-To initialize the environment for Django (i.e. setup the database, create admin user etc.), run the following commands:
-
-```sh
-heroku run python manage.py collectstatic
-heroku run python manage.py migrate
-heroku run python manage.py createsuperuser
-```
-
-You will be prompted for a username, email address and password for the admin user. This is the user you will use yourself to administer the Django environment (don't worry, it's not much).
-
 ### Deploy app (Heroku)
 Deploying the app to Heroku can be done in 2 ways:
 * Deploy directy to Heroku using Git: you push your code to the master branch on a remote on Heroku. Heroku automatically redeploys your app.
 * Push your code to GitHub: by connecting Heroku to GitHub, it will be notified when you push your code and redeploy the app.
 
 #### Directly to Heroku
-Inside the project folder (the git repo you just cloned), run the following command:
-
-```sh
-$ heroku git:remote -a <app name>
-```
-
-Fill in the name of the app: the part before `.herokuapp.com`, usually in the form `xxx-xxx-12345`.  
-This adds a remote to the git repo called `heroku`. Any code you push to the master branch on this remote will be deployed:
+If you followed the previous steps, you should already have the `heroku` remote in your `spe-heroku` repo, which means you're all set!  
+Any code you push to the master branch on this remote will be deployed. You can do so now:
 
 ```sh
 $ git push heroku master
@@ -131,6 +128,24 @@ Any code pushed to the master branch on GitHub will automatically be deployed on
 
 This is the technique I used, so if you have access to my GitHub repo (`TuurDutoit/spe-heroku`), you can deploy updates to my Heroku app by pushing to this repo.
 
+### Django setup (Heroku)
+Django requires a bit of setup before it can run; more specifically, it expects the database to be set up and static files to be present in a certain directory. Heroku automatically takes care of the static files (by running `python manage.py collectstatic`) and the `Procfile` of this project is set up to automatically migrate the database when you deploy a new version (see the `release` process in `Procfile`).  
+If any of this doesn't work, run the following commands:
+
+```sh
+heroku run python manage.py collectstatic
+heroku run python manage.py migrate
+```
+
+If this also fails due to Heroku setup, you can run these on your local machine:
+
+```sh
+heroku local:run python manage.py collectstatic
+heroku local:run python manage.py migrate
+```
+
+Make sure you have the right environment variables in `.env` and `python` points to a Python 3 installation! If that is not the case, use `python3` instead of `python`.
+
 ### Check deployment (Heroku)
 The Heroku app should be up and running. Click `Open App` in the Heroku UI or run `$ heroku open` to open it. You should see a very basic webpage telling you you are seeing the Sales Planning Engine.  
 Note that when you deploy, it might take a minute for that process to finish and the app to start up.
@@ -138,6 +153,15 @@ Note that when you deploy, it might take a minute for that process to finish and
 At this point, you have the engine running and ready to accept change notifications. It can fetch relevant data from Salesforce (using the REST API and logging in through the Connected App and API user you created) and driving distances from Google Maps.
 
 Now, let's set up the Salesforce side.
+
+### Create admin (Heroku)
+Use the following command to create a user for the Django admin site:
+
+```sh
+heroku run python manage.py createsuperuser
+```
+
+You will be prompted for a username, email address and password for the admin user. This is the user you will use yourself to administer the Django environment (don't worry, it's not much).
 
 ### Create API user (Heroku)
 In order for Salesforce to notify the engine of changes, it needs the credentials of a Django user. Lets created one:
