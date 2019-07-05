@@ -1,4 +1,6 @@
 from ...util import init_matrix
+import traceback
+import sys
 import googlemaps
 import os
 import logging
@@ -41,9 +43,14 @@ def distance_matrix(addresses, num_new_locations):
             if i != j and not (i >= num_new_locations and j >= num_new_locations):
                 try:
                     routes = maps.directions(origin=addresses[i], destination=addresses[j])
-                    distances[i][j] = routes[0]['legs'][0]['duration']['value']
+
+                    if len(routes) > 0 and len(routes[0]['legs']) > 0:
+                        route = routes[0]
+                        leg = route['legs'][0]
+                        distances[i][j] = leg['duration']['value']
                 except Exception as e:
                     logger.debug('Maps error: %r | %s -> %s', e, addresses[i], addresses[j])
+                    logger.exception('Error')
                     distances[i][j] = None
                     
                     if isinstance(e, GoogleMapsApiError):

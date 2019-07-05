@@ -1,7 +1,7 @@
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from engine.models.schedule import main as get_schedules
 from engine.models.recommendations import refresh_recommendations_for
-from engine.data import handle_change
+from engine.data import handle_change, reset
 from .models import User, Account, Event, Recommendation
 from .util import to_json
 from .util.endpoint import Endpoint, ModelEndpoint

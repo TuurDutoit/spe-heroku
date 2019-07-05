@@ -53,7 +53,7 @@ $ heroku addons:create papertrail:choklad
 ```
 
 ### Create a Salesforce org
-A standard [Developer org](https://developer.salesforce.com/signup) will do. Make sure Einstein Next Best Action is enabled though.
+A standard [Developer org](https://developer.salesforce.com/signup) will do. Make sure you have set up My Domain and Einstein Next Best Action is enabled though.
 
 ### Add remote site (Salesforce)
 This allows Salesforce to callout to the engine, which is required to notify it of changes and to retrieve recommendation records.
@@ -154,7 +154,7 @@ At this point, you have the engine running and ready to accept change notificati
 
 Now, let's set up the Salesforce side.
 
-### Create admin (Heroku)
+### Create admin user (Heroku)
 Use the following command to create a user for the Django admin site:
 
 ```sh
@@ -194,6 +194,23 @@ To configure the add-on, follow these steps:
 You can now follow the instructions in the `spe-salesforce` repo to finish the setup of the Salesforce side. You have completed the steps up to and including `Add remote site`, so you should start with `Create named credential`.  
 When you're done, everything should be up and running!
 
+### Initialize the database
+A lot of data, especially the routes from Google Maps, is cached in Heroku Postgres. In order to initialize this database based on the data that already exists in your org, you can use the `reset.py` script:
+
+```sh
+$ heroku run python reset.py
+```
+
+Because the number of requests to Google Maps grows exponentially with the records in your org, it can easily start making thousands of requests, even with the small example data set that is present in dev orgs. Therefore, it may be wise to filter out a number of records, for example by creating new records and assigning the other ones to another user. You can then tell the script which ones to keep, based on any field known to Django (look in `web.models`) and using various types. Some examples:
+
+```sh
+$ heroku run python reset.py --filter owner_id <your user ID>
+$ heroku run python reset.py --filter event.start_date_time__gte date:2019-06-23
+$ heroku run python reset.py --filter is_deleted bool:false
+$ heroku run python reset.py -f is_deleted bool:false -f owner_id <your user ID>
+```
+
+You only have to do this once. From then on all data is kept in sync automatically by the triggers. Note that, if anything were to happen that breaks the database, you can use this script to refresh everything.
 
 ## Running Locally
 You can run the engine locally, on your own machine, which is sometimes useful for debugging. In this configuration, it can connect to Salesforce and Google Maps (and a Postgres DB, either local or on Heroku), but Salesforce won't be able to connect to the engine! This means your app running locally won't receive change notifications from Salesforce. You can, of course, send them yourself using a tool like Postman.  

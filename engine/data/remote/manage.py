@@ -1,5 +1,5 @@
 from django.db.models import Q
-from web.models import User, Recommendation, Location, Route
+from web.models import User, Recommendation, Location, Route, Account, Contact, Lead, Opportunity, Event
 from .routes.manage import refresh_routes
 from app.util import get_default_date
 from dateutil.parser import parse
@@ -26,3 +26,35 @@ def remove_recommendations(ctx):
 
 def insert_recommendations(recs):
     Recommendation.objects.bulk_create(recs)
+
+def delete_everything():
+    Recommendation.objects.all().delete()
+    Route.objects.all().delete()
+    Location.objects.all().delete()
+
+def recalc_all(Model, **filters):
+    name = Model._meta.model_name
+    records = Model.objects.all()
+
+    if filters and len(filters):
+        records = records.filter(**filters)
+
+    record_ids = [record.pk for record in records]
+    handle_change({
+        'type': 'object',
+        'action': 'insert',
+        'objectName': name,
+        'records': record_ids
+    })
+
+def recalc_everything(filters):
+    today = datetime.datetime.combine(datetime.date.today(), datetime.time(0))
+    recalc_all(Account, **filters.get('all', {}), **filters.get('account', {}))
+    recalc_all(Contact, **filters.get('all', {}), **filters.get('contact', {}))
+    recalc_all(Lead, **filters.get('all', {}), **filters.get('lead', {}))
+    recalc_all(Opportunity, **filters.get('all', {}), **filters.get('opportunity', {}))
+    recalc_all(Event, start_date_time__gte=today, **filters.get('all', {}), **filters.get('event', {}))
+
+def reset(filters={}):
+    delete_everything()
+    recalc_everything(filters)
