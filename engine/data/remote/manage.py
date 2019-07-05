@@ -40,7 +40,7 @@ def recalc_all(Model, **filters):
         records = records.filter(**filters)
 
     record_ids = [record.pk for record in records]
-    handle_change({
+    return handle_change({
         'type': 'object',
         'action': 'insert',
         'objectName': name,
@@ -49,12 +49,16 @@ def recalc_all(Model, **filters):
 
 def recalc_everything(filters):
     today = datetime.datetime.combine(datetime.date.today(), datetime.time(0))
-    recalc_all(Account, **filters.get('all', {}), **filters.get('account', {}))
-    recalc_all(Contact, **filters.get('all', {}), **filters.get('contact', {}))
-    recalc_all(Lead, **filters.get('all', {}), **filters.get('lead', {}))
-    recalc_all(Opportunity, **filters.get('all', {}), **filters.get('opportunity', {}))
-    recalc_all(Event, start_date_time__gte=today, **filters.get('all', {}), **filters.get('event', {}))
+    all_ctxs = []
+
+    all_ctxs += recalc_all(Account, **filters.get('all', {}), **filters.get('account', {}))
+    all_ctxs += recalc_all(Contact, **filters.get('all', {}), **filters.get('contact', {}))
+    all_ctxs += recalc_all(Lead, **filters.get('all', {}), **filters.get('lead', {}))
+    all_ctxs += recalc_all(Opportunity, **filters.get('all', {}), **filters.get('opportunity', {}))
+    all_ctxs += recalc_all(Event, start_date_time__gte=today, **filters.get('all', {}), **filters.get('event', {}))
+
+    return all_ctxs
 
 def reset(filters={}):
     delete_everything()
-    recalc_everything(filters)
+    return recalc_everything(filters)

@@ -8,6 +8,7 @@ application = get_wsgi_application()
 # Delete all recommendations, locations & routes from the database
 # and recalculate *everything*
 from engine.data import reset
+from engine.models.recommendations import refresh_recommendations_for_all
 from dateutil.parser import parse as parse_date
 import argparse
 
@@ -15,6 +16,7 @@ parser = argparse.ArgumentParser(description='Reset the Sales Planning Engine da
 parser.add_argument('-f', '--filter',
     dest='filters', action='append', nargs=2, metavar=('object.field', 'type:value'),
     help='Filter the records that will be queried. If you omit "object", the filter will be applied to all objects. Parses the string respresentation "value" into "type". The default type is "str".')
+parser.add_argument('--no-recs', dest='recs', action='store_false')
 args = parser.parse_args()
 
 def parse_bool(s):
@@ -55,4 +57,8 @@ for (key, val) in args.filters or []:
     
     filters[obj][field] = value
 
-reset(filters)
+ctxs = reset(filters)
+print(ctxs)
+
+if args.recs:
+    refresh_recommendations_for_all(ctxs)

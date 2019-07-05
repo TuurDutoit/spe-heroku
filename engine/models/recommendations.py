@@ -19,6 +19,10 @@ ENABLE = {
 
 logger = logging.getLogger(__name__)
 
+def refresh_recommendations_for_all(ctxs):
+    for ctx in set(ctxs):
+        refresh_recommendations_for(ctx)
+
 def refresh_recommendations_for(ctx):
     with transaction.atomic():
         recs, solution = get_recommendations_for(ctx)

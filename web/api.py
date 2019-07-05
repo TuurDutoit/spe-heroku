@@ -70,7 +70,7 @@ class RecalculateEndpoint(PermissionRequiredMixin, Endpoint):
         # Recalculate recommendations
         results = []
         
-        for ctx in ctxs:
+        for ctx in set(ctxs):
             recs, solution = refresh_recommendations_for(ctx)
             results.append({
                 'userId': ctx[0],
